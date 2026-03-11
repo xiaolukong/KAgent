@@ -1,0 +1,104 @@
+"""Tests for SteeringController dual-queue system."""
+
+import pytest
+
+from kagent.agent.steering import SteeringController
+from kagent.domain.entities import Message
+from kagent.domain.enums import EventType, Role
+from kagent.domain.events import SteeringEvent
+from kagent.events.bus import EventBus
+
+
+@pytest.fixture
+def steering_setup():
+    bus = EventBus()
+    controller = SteeringController(bus)
+    return controller, bus
+
+
+class TestSteeringAbort:
+    @pytest.mark.asyncio
+    async def test_abort_sets_flag(self, steering_setup):
+        controller, bus = steering_setup
+        assert controller.is_aborted is False
+
+        await bus.publish(
+            SteeringEvent(
+                event_type=EventType.STEERING_ABORT,
+                payload={"reason": "test abort"},
+            )
+        )
+
+        assert controller.is_aborted is True
+
+    @pytest.mark.asyncio
+    async def test_abort_queues_directive(self, steering_setup):
+        controller, bus = steering_setup
+        await bus.publish(
+            SteeringEvent(
+                event_type=EventType.STEERING_ABORT,
+                payload={"reason": "stop"},
+            )
+        )
+        directive = controller.get_pending_directive()
+        assert directive is not None
+        assert directive.event_type == EventType.STEERING_ABORT
+
+
+class TestSteeringRedirect:
+    @pytest.mark.asyncio
+    async def test_redirect_queued(self, steering_setup):
+        controller, bus = steering_setup
+        await bus.publish(
+            SteeringEvent(
+                event_type=EventType.STEERING_REDIRECT,
+                payload={"directive": "change topic"},
+            )
+        )
+        directive = controller.get_pending_directive()
+        assert directive is not None
+        assert directive.payload["directive"] == "change topic"
+
+
+class TestSteeringInjectMessage:
+    @pytest.mark.asyncio
+    async def test_inject_message_queued(self, steering_setup):
+        controller, bus = steering_setup
+        msg = Message(role=Role.USER, content="injected message")
+        await bus.publish(
+            SteeringEvent(
+                event_type=EventType.STEERING_INJECT_MESSAGE,
+                payload={"message": msg},
+            )
+        )
+        messages = controller.get_pending_messages()
+        assert len(messages) == 1
+        assert messages[0].content == "injected message"
+
+
+class TestSteeringReset:
+    @pytest.mark.asyncio
+    async def test_reset_clears_all(self, steering_setup):
+        controller, bus = steering_setup
+        await bus.publish(
+            SteeringEvent(
+                event_type=EventType.STEERING_ABORT,
+                payload={"reason": "test"},
+            )
+        )
+        assert controller.is_aborted is True
+
+        controller.reset()
+        assert controller.is_aborted is False
+        assert controller.get_pending_directive() is None
+        assert controller.get_pending_messages() == []
+
+
+class TestSteeringEmpty:
+    def test_no_pending_directive(self, steering_setup):
+        controller, bus = steering_setup
+        assert controller.get_pending_directive() is None
+
+    def test_no_pending_messages(self, steering_setup):
+        controller, bus = steering_setup
+        assert controller.get_pending_messages() == []
