@@ -1,14 +1,19 @@
-"""Example 07: Steering — mid-turn abort and redirect.
+"""Example 07: Steering — mid-turn redirect and abort.
 
 This example demonstrates:
-- Using agent.abort() to cancel a running agent from a concurrent coroutine
+- Using agent.steer() to redirect a running agent to a new instruction
+- Using agent.abort() to cancel a running agent
 - Observing steering events via event hooks
-- How the agent loop checks for abort at the start of each turn
+- How the agent loop handles redirect vs abort differently
 
 Steering is designed for concurrent use: the agent runs in the foreground
 while another coroutine (or an event hook) calls steer() / abort() to
-intervene.  The agent loop checks for pending directives at the start of
-each turn and terminates gracefully when an abort is detected.
+intervene.
+
+- steer(directive): injects the directive as a new user message and the
+  agent CONTINUES the loop, responding to the new instruction.
+- abort(reason): sets the abort flag and the agent STOPS at the next
+  turn boundary.
 
 Usage:
     export KAGENT_API_KEY=sk-xxx
@@ -21,6 +26,71 @@ from kagent import KAgent, configure
 from kagent.domain.events import Event
 
 
+async def demo_steer() -> None:
+    """Demonstrate redirecting an agent mid-run with steer().
+
+    The agent starts researching topic A using a tool.  After the first tool
+    call completes, a concurrent coroutine fires agent.steer() with a new
+    instruction.  The agent loop injects this as a user message and
+    continues — the model now responds to the new instruction instead.
+    """
+    print("\n--- Demo 1: Redirect with steer() ---\n")
+
+    agent = KAgent(
+        model="openai:gpt-5",
+        system_prompt=(
+            "You are a research assistant. "
+            "Always call the research tool for each topic. "
+            "After researching, provide a brief summary."
+        ),
+        max_turns=10,
+    )
+
+    topics_researched: list[str] = []
+
+    @agent.tool
+    async def research(topic: str) -> str:
+        """Research a topic and return findings."""
+        topics_researched.append(topic)
+        print(f"  [tool] research('{topic}')")
+        await asyncio.sleep(0.3)
+        return f"Key finding: {topic} is a rapidly evolving field with major breakthroughs in 2025."
+
+    @agent.on("steering.redirect")
+    async def on_redirect(event: Event):
+        directive = event.payload.get("directive", "")
+        print(f"  [steering event] redirect: \"{directive}\"")
+
+    @agent.on("agent.loop.iteration")
+    async def on_turn(event: Event):
+        turn = event.payload.get("turn_number", "?")
+        print(f"  [loop] turn {turn}")
+
+    # After the first tool call, redirect to a completely different topic
+    async def redirect_after_first_tool():
+        while len(topics_researched) < 1:
+            await asyncio.sleep(0.1)
+        print("  >>> Redirecting agent to a new topic!")
+        await agent.steer(
+            "Actually, stop what you're doing. "
+            "Research 'artificial intelligence' instead and summarize that."
+        )
+
+    agent_task = asyncio.create_task(
+        agent.run("Research 'quantum computing' and 'black holes'.")
+    )
+    steer_task = asyncio.create_task(redirect_after_first_tool())
+
+    result, _ = await asyncio.gather(agent_task, steer_task, return_exceptions=True)
+
+    if isinstance(result, Exception):
+        print(f"  Agent ended with exception: {result}")
+    else:
+        print(f"\n  Final response: {result.content}")
+    print(f"  Topics researched: {topics_researched}")
+    print("  (Notice the agent switched to the redirected topic!)")
+
+
 async def demo_abort() -> None:
     """Demonstrate aborting an agent mid-run.
 
@@ -29,7 +99,7 @@ async def demo_abort() -> None:
     The agent loop detects the abort flag at the next turn boundary and
     stops early.
     """
-    print("\n--- Demo 1: Abort mid-run ---\n")
+    print("\n\n--- Demo 2: Abort mid-run ---\n")
 
     agent = KAgent(
         model="openai:gpt-5",
@@ -96,7 +166,7 @@ async def demo_abort_streaming() -> None:
 
     Same concept, but using agent.stream() instead of agent.run().
     """
-    print("\n\n--- Demo 2: Abort during streaming ---\n")
+    print("\n\n--- Demo 3: Abort during streaming ---\n")
 
     agent = KAgent(
         model="openai:gpt-5",
@@ -158,6 +228,7 @@ async def main():
     )
 
     print("=== Steering Example ===")
+    await demo_steer()
     await demo_abort()
     await demo_abort_streaming()
 

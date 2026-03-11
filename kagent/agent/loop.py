@@ -65,7 +65,16 @@ class AgentLoop:
             directive = self._steering.get_pending_directive()
             if directive:
                 logger.info("Steering directive received: %s", directive.event_type)
-                break
+                if directive.event_type == EventType.STEERING_REDIRECT:
+                    # Redirect: inject the directive as a user message and continue
+                    redirect_text = directive.payload.get("directive", "")
+                    if redirect_text:
+                        self._context.add_message(
+                            Message(role=Role.USER, content=redirect_text)
+                        )
+                    # Continue the loop — the model will respond to the new instruction
+                else:
+                    break
 
             await self._event_bus.publish(
                 AgentEvent(
@@ -150,7 +159,14 @@ class AgentLoop:
                 break
             directive = self._steering.get_pending_directive()
             if directive:
-                break
+                if directive.event_type == EventType.STEERING_REDIRECT:
+                    redirect_text = directive.payload.get("directive", "")
+                    if redirect_text:
+                        self._context.add_message(
+                            Message(role=Role.USER, content=redirect_text)
+                        )
+                else:
+                    break
 
             await self._event_bus.publish(
                 AgentEvent(
