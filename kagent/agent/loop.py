@@ -73,6 +73,20 @@ class AgentLoop:
                             Message(role=Role.USER, content=redirect_text)
                         )
                     # Continue the loop — the model will respond to the new instruction
+                elif directive.event_type == EventType.STEERING_INTERRUPT:
+                    # Interrupt: pause and wait for user input
+                    prompt = directive.payload.get("prompt", "")
+                    logger.info("Interrupt requested: %s", prompt)
+
+                    user_input = await self._steering.wait_for_resume()
+
+                    if self._steering.is_aborted:
+                        break
+
+                    self._context.add_message(
+                        Message(role=Role.USER, content=user_input)
+                    )
+                    # Continue the loop with user's response
                 else:
                     break
 
@@ -165,6 +179,18 @@ class AgentLoop:
                         self._context.add_message(
                             Message(role=Role.USER, content=redirect_text)
                         )
+                elif directive.event_type == EventType.STEERING_INTERRUPT:
+                    prompt = directive.payload.get("prompt", "")
+                    logger.info("Interrupt requested (stream): %s", prompt)
+
+                    user_input = await self._steering.wait_for_resume()
+
+                    if self._steering.is_aborted:
+                        break
+
+                    self._context.add_message(
+                        Message(role=Role.USER, content=user_input)
+                    )
                 else:
                     break
 

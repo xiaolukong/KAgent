@@ -12,7 +12,7 @@ from kagent.agent.prompt_builder import PromptBuilder
 from kagent.agent.steering import SteeringController
 from kagent.context.manager import ContextManager
 from kagent.domain.enums import EventType
-from kagent.domain.events import AgentEvent
+from kagent.domain.events import AgentEvent, SteeringEvent
 from kagent.domain.model_types import ModelResponse, StreamChunk
 from kagent.domain.protocols import IEventBus, IModelProvider
 from kagent.tools.executor import ToolExecutor
@@ -157,6 +157,33 @@ class Agent:
             AgentEvent(
                 event_type=EventType.STEERING_ABORT,
                 payload={"reason": reason},
+                source="agent",
+            )
+        )
+
+    async def interrupt(self, prompt: str) -> None:
+        """Pause the agent loop and request user input.
+
+        The agent loop will suspend at the next turn boundary and wait
+        until ``resume()`` is called with the user's reply.
+        """
+        await self._event_bus.publish(
+            SteeringEvent(
+                event_type=EventType.STEERING_INTERRUPT,
+                payload={"prompt": prompt},
+                source="agent",
+            )
+        )
+
+    async def resume(self, user_input: str) -> None:
+        """Provide user input to resume a paused agent loop.
+
+        Must be called after ``interrupt()`` to unblock the loop.
+        """
+        await self._event_bus.publish(
+            SteeringEvent(
+                event_type=EventType.STEERING_RESUME,
+                payload={"user_input": user_input},
                 source="agent",
             )
         )

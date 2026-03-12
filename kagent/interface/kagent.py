@@ -162,3 +162,15 @@ class KAgent:
     async def abort(self, reason: str = "User requested abort") -> None:
         """Abort the current run."""
         await self._agent.abort(reason)
+
+    async def interrupt(self, prompt: str) -> None:
+        """Pause the agent loop and request user input.
+
+        The loop suspends at the next turn boundary. Call ``resume()``
+        from another coroutine to provide user input and continue.
+        """
+        await self._agent.interrupt(prompt)
+
+    async def resume(self, user_input: str) -> None:
+        """Provide user input to resume a paused agent loop."""
+        await self._agent.resume(user_input)

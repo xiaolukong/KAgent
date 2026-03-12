@@ -544,3 +544,160 @@ result = await agent.run("What's the weather in Berlin?")
 ## 交付物
 
 在项目根目录生成 `docs/design.md`，包含以上全部设计内容。
+
+---
+
+## Part 4: Interrupt Feature（运行时暂停与用户交互）
+
+### 4.1 概述
+
+Interrupt 是 Steering 系统的第三种干预模式。与 `steer()`（重定向并继续）和 `abort()`（停止）不同，`interrupt()` 会**暂停** Agent 循环、向用户发送一条消息（prompt），然后**等待用户输入**。用户回复后，回复内容作为新的 `Role.USER` 消息注入到对话上下文中，Agent 循环**恢复运行**。
+
+| 方法 | 循环行为 | 用途 |
+|------|---------|------|
+| `agent.steer(directive)` | 注入指令，继续 | 改变 Agent 方向 |
+| `agent.abort(reason)` | 停止 | 取消运行 |
+| `agent.interrupt(prompt)` | **暂停，等待用户输入，恢复** | 需要用户确认或补充信息 |
+
+### 4.2 典型使用场景
+
+- Agent 在执行多步任务时，需要用户确认某个关键决策
+- Tool 执行前需要用户授权（如支付、删除等危险操作）
+- Agent 发现信息不足，需要向用户请求补充信息
+- 外部协程根据条件暂停 Agent 并收集用户反馈
+
+### 4.3 API 设计
+
+#### 用户侧 API
+
+```python
+# 发起中断：prompt 是发给用户的消息
+await agent.interrupt("I need your confirmation: should I proceed with deleting the file?")
+
+# 恢复中断：user_input 是用户的回复
+await agent.resume("Yes, go ahead and delete it.")
+```
+
+#### 事件钩子
+
+```python
+@agent.on("steering.interrupt")
+async def on_interrupt(event: Event):
+    prompt = event.payload["prompt"]
+    print(f"Agent is asking: {prompt}")
+    # 此处可以展示 UI、发送通知等
+
+@agent.on("steering.resume")
+async def on_resume(event: Event):
+    user_input = event.payload["user_input"]
+    print(f"User replied: {user_input}")
+```
+
+### 4.4 内部架构
+
+#### 新增事件类型
+
+```python
+class EventType(str, Enum):
+    # ... 现有事件 ...
+    STEERING_INTERRUPT = "steering.interrupt"   # 请求暂停
+    STEERING_RESUME = "steering.resume"         # 用户回复，恢复运行
+```
+
+#### SteeringController 扩展
+
+核心机制是一个 `asyncio.Event` 信号量：
+
+```
+interrupt(prompt)                  resume(user_input)
+      │                                  │
+      ▼                                  ▼
+  _interrupt_prompt = prompt        _interrupt_response = user_input
+  _interrupt_event.clear()          _interrupt_event.set()
+      │                                  │
+      ▼                                  ▼
+  循环检测到 INTERRUPT 指令          循环 await _interrupt_event.wait()
+  发布 steering.interrupt 事件       └── 等待结束，读取 response
+  await _interrupt_event.wait()      注入 user message，继续循环
+```
+
+关键属性与方法：
+
+| 属性/方法 | 说明 |
+|----------|------|
+| `_interrupt_event: asyncio.Event` | 信号量，clear=暂停，set=恢复 |
+| `_interrupt_prompt: str \| None` | 发给用户的提示消息 |
+| `_interrupt_response: str \| None` | 用户的回复 |
+| `is_interrupted -> bool` | 是否处于中断等待状态 |
+| `request_interrupt(prompt)` | 请求中断（由事件回调调用） |
+| `provide_response(user_input)` | 提供用户回复并解除等待（由事件回调调用） |
+| `wait_for_resume() -> str` | 阻塞等待用户回复，返回回复内容 |
+
+#### AgentLoop 修改
+
+在 `run()` 和 `run_stream()` 的转向边界检查中，增加 interrupt 处理：
+
+```python
+# 现有检查
+if self._steering.is_aborted:
+    break
+directive = self._steering.get_pending_directive()
+if directive:
+    if directive.event_type == EventType.STEERING_REDIRECT:
+        # ... 注入指令，继续
+    elif directive.event_type == EventType.STEERING_INTERRUPT:
+        # 新增：暂停并等待用户输入
+        await self._event_bus.publish(...)  # steering.interrupt 事件
+        user_input = await self._steering.wait_for_resume()
+        await self._event_bus.publish(...)  # steering.resume 事件
+        self._context.add_message(Message(role=Role.USER, content=user_input))
+        # 继续循环
+    else:
+        break
+```
+
+#### 数据流
+
+```
+                          ┌───────────────────────────────────┐
+                          │        SteeringController         │
+                          │                                   │
+  agent.interrupt(prompt)─▶  steering_queue (INTERRUPT event) │
+                          │   └─ 循环检测到 → 发布事件         │
+                          │      → await wait_for_resume()    │
+                          │                                   │
+  agent.resume(input) ───▶│  _interrupt_event.set()           │
+                          │   └─ wait_for_resume() 返回       │
+                          │      → 注入 user message          │
+                          │      → 循环继续                    │
+                          │                                   │
+  agent.steer(directive)─▶│  steering_queue (REDIRECT)        │ ──▶ 注入指令，继续
+  agent.abort(reason) ──▶│  steering_queue (ABORT)           │ ──▶ 停止循环
+                          └───────────────────────────────────┘
+```
+
+### 4.5 并发安全
+
+- `asyncio.Event` 是协程安全的，天然支持 `await wait()` + `set()` 的跨协程通信
+- Interrupt 期间，Agent 循环的协程在 `await wait_for_resume()` 处挂起，不消耗 CPU
+- `resume()` 可以从任何协程调用（UI 线程、事件钩子、另一个 Task 等）
+- 同一时间只有一个 interrupt 生效；如果已在中断状态，新的 `interrupt()` 调用会覆盖 prompt 但不影响已暂停的等待
+
+### 4.6 与现有 Steering 的交互
+
+- **abort 优先于 interrupt**：如果在等待用户输入期间调用了 `abort()`，循环在恢复后会检测到 abort 标志并退出
+- **interrupt 只在转向边界生效**：与 redirect/abort 一样，interrupt 指令在每个循环轮次开始时被检查，不会中断正在进行的 LLM 调用或 tool 执行
+- **reset() 清除中断状态**：调用 `reset()` 会重置 interrupt 相关的所有状态
+
+### 4.7 涉及文件变更
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `kagent/domain/enums.py` | 修改 | 添加 `STEERING_INTERRUPT`、`STEERING_RESUME` |
+| `kagent/agent/steering.py` | 修改 | 添加 interrupt/resume 机制 |
+| `kagent/agent/loop.py` | 修改 | 处理 INTERRUPT 指令 |
+| `kagent/agent/agent.py` | 修改 | 添加 `interrupt()`、`resume()` 方法 |
+| `kagent/interface/kagent.py` | 修改 | 暴露 `interrupt()`、`resume()` 到 Facade |
+| `tests/agent/test_steering.py` | 修改 | 添加 interrupt 单元测试 |
+| `examples/08_interrupt.py` | 新建 | 使用示例 |
+| `docs/usage.md` | 修改 | 添加 interrupt 文档 |

@@ -41,6 +41,8 @@ class EventType(str, Enum):
     STEERING_REDIRECT = "steering.redirect"
     STEERING_INJECT_MESSAGE = "steering.inject_message"
     STEERING_ABORT = "steering.abort"
+    STEERING_INTERRUPT = "steering.interrupt"
+    STEERING_RESUME = "steering.resume"
 
 
 class ModelProviderType(str, Enum):
