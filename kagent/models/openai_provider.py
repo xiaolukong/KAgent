@@ -160,7 +160,9 @@ class OpenAIProvider(BaseModelProvider):
             "messages": messages_to_openai(request.messages),
         }
         # Resolve desired temperature, then clamp for models that only accept 1
-        desired_temp = request.temperature if request.temperature is not None else self._config.temperature
+        desired_temp = (
+            request.temperature if request.temperature is not None else self._config.temperature
+        )
         kwargs["temperature"] = self.clamp_temperature(model_name, desired_temp)
         if request.max_tokens is not None:
             kwargs["max_tokens"] = request.max_tokens
@@ -173,7 +175,7 @@ class OpenAIProvider(BaseModelProvider):
         if request.response_format:
             kwargs["response_format"] = request.response_format
         return kwargs
-    
+
     def clamp_temperature(self, model_name: str, temperature: float | None) -> float:
         """Return *temperature* unchanged for models that accept it, else 1."""
         if model_name in _FLEXIBLE_TEMP_MODELS:

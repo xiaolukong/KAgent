@@ -551,31 +551,40 @@ result = await agent.run("What's the weather in Berlin?")
 
 ### 4.1 概述
 
-Interrupt 是 Steering 系统的第三种干预模式。与 `steer()`（重定向并继续）和 `abort()`（停止）不同，`interrupt()` 会**暂停** Agent 循环、向用户发送一条消息（prompt），然后**等待用户输入**。用户回复后，回复内容作为新的 `Role.USER` 消息注入到对话上下文中，Agent 循环**恢复运行**。
+Interrupt 是 Steering 系统的第三种干预模式。与 `steer()`（重定向并继续）和 `abort()`（停止）不同，`interrupt()` 会**暂停执行**、向用户发送一条消息（prompt），然后**等待用户输入**。用户回复后，`interrupt()` **返回用户的回复字符串**，Tool 可以直接使用该回复做逻辑判断。
 
 | 方法 | 循环行为 | 用途 |
 |------|---------|------|
 | `agent.steer(directive)` | 注入指令，继续 | 改变 Agent 方向 |
 | `agent.abort(reason)` | 停止 | 取消运行 |
-| `agent.interrupt(prompt)` | **暂停，等待用户输入，恢复** | 需要用户确认或补充信息 |
+| `agent.interrupt(prompt) -> str` | **暂停，等待用户回复，返回回复** | Tool 内部确认 / 授权 |
 
 ### 4.2 典型使用场景
 
-- Agent 在执行多步任务时，需要用户确认某个关键决策
-- Tool 执行前需要用户授权（如支付、删除等危险操作）
-- Agent 发现信息不足，需要向用户请求补充信息
-- 外部协程根据条件暂停 Agent 并收集用户反馈
+- Tool 执行前需要用户授权（如转账、删除等危险操作）
+- Tool 检测到异常参数，需要用户二次确认
+- Agent 发现信息不足，Tool 向用户请求补充信息
 
 ### 4.3 API 设计
 
 #### 用户侧 API
 
-```python
-# 发起中断：prompt 是发给用户的消息
-await agent.interrupt("I need your confirmation: should I proceed with deleting the file?")
+`interrupt()` 是一个**阻塞调用**，返回用户的回复字符串。典型用法是在 Tool 内部：
 
-# 恢复中断：user_input 是用户的回复
-await agent.resume("Yes, go ahead and delete it.")
+```python
+@agent.tool
+async def transfer_money(amount: int, account: str) -> str:
+    """Transfer money to an account."""
+    if amount > 1000:
+        reply = await agent.interrupt(
+            f"Large transfer: {amount} to {account}. Approve? (yes/no)"
+        )
+        if reply.strip().lower() != "yes":
+            return f"Transfer cancelled by user."
+    return f"Transferred {amount} to {account}."
+
+# resume() 由事件钩子调用
+await agent.resume("yes")
 ```
 
 #### 事件钩子
@@ -606,7 +615,7 @@ class EventType(str, Enum):
 
 #### SteeringController 扩展
 
-核心机制是一个 `asyncio.Event` 信号量：
+核心机制是一个 `asyncio.Event` 信号量。`interrupt()` 不再经过 steering_queue，而是**直接在 Tool 内部阻塞**：
 
 ```
 interrupt(prompt)                  resume(user_input)
@@ -616,9 +625,9 @@ interrupt(prompt)                  resume(user_input)
   _interrupt_event.clear()          _interrupt_event.set()
       │                                  │
       ▼                                  ▼
-  循环检测到 INTERRUPT 指令          循环 await _interrupt_event.wait()
-  发布 steering.interrupt 事件       └── 等待结束，读取 response
-  await _interrupt_event.wait()      注入 user message，继续循环
+  发布 steering.interrupt 事件      await _interrupt_event.wait() 返回
+  await _interrupt_event.wait()     interrupt() 返回 user_input 给 Tool
+  └── Tool 内部阻塞                  └── Tool 继续执行
 ```
 
 关键属性与方法：
@@ -635,25 +644,19 @@ interrupt(prompt)                  resume(user_input)
 
 #### AgentLoop 修改
 
-在 `run()` 和 `run_stream()` 的转向边界检查中，增加 interrupt 处理：
+Interrupt 不在 AgentLoop 的转向边界处理 — 它直接在 Tool 执行期间阻塞（因为 Tool 调用 `await agent.interrupt()` 后，Tool 协程暂停，AgentLoop 自然也暂停在 `await tool_executor.execute()` 处）。
+
+AgentLoop 的转向边界只检查 redirect 和 abort：
 
 ```python
-# 现有检查
 if self._steering.is_aborted:
     break
 directive = self._steering.get_pending_directive()
 if directive:
     if directive.event_type == EventType.STEERING_REDIRECT:
-        # ... 注入指令，继续
-    elif directive.event_type == EventType.STEERING_INTERRUPT:
-        # 新增：暂停并等待用户输入
-        await self._event_bus.publish(...)  # steering.interrupt 事件
-        user_input = await self._steering.wait_for_resume()
-        await self._event_bus.publish(...)  # steering.resume 事件
-        self._context.add_message(Message(role=Role.USER, content=user_input))
-        # 继续循环
+        # 注入指令，继续
     else:
-        break
+        break  # abort
 ```
 
 #### 数据流
@@ -662,14 +665,13 @@ if directive:
                           ┌───────────────────────────────────┐
                           │        SteeringController         │
                           │                                   │
-  agent.interrupt(prompt)─▶  steering_queue (INTERRUPT event) │
-                          │   └─ 循环检测到 → 发布事件         │
-                          │      → await wait_for_resume()    │
+  agent.interrupt(prompt)─▶  (不经过队列，直接在 Tool 内阻塞)  │
+                          │   发布 steering.interrupt 事件     │
+                          │   await wait_for_resume()         │
                           │                                   │
   agent.resume(input) ───▶│  _interrupt_event.set()           │
                           │   └─ wait_for_resume() 返回       │
-                          │      → 注入 user message          │
-                          │      → 循环继续                    │
+                          │      interrupt() 返回给 Tool       │
                           │                                   │
   agent.steer(directive)─▶│  steering_queue (REDIRECT)        │ ──▶ 注入指令，继续
   agent.abort(reason) ──▶│  steering_queue (ABORT)           │ ──▶ 停止循环
@@ -679,14 +681,14 @@ if directive:
 ### 4.5 并发安全
 
 - `asyncio.Event` 是协程安全的，天然支持 `await wait()` + `set()` 的跨协程通信
-- Interrupt 期间，Agent 循环的协程在 `await wait_for_resume()` 处挂起，不消耗 CPU
-- `resume()` 可以从任何协程调用（UI 线程、事件钩子、另一个 Task 等）
+- Interrupt 期间，Tool 的协程在 `await wait_for_resume()` 处挂起，不消耗 CPU
+- `resume()` 可以从任何协程调用（事件钩子、UI 线程、另一个 Task 等）
 - 同一时间只有一个 interrupt 生效；如果已在中断状态，新的 `interrupt()` 调用会覆盖 prompt 但不影响已暂停的等待
 
 ### 4.6 与现有 Steering 的交互
 
 - **abort 优先于 interrupt**：如果在等待用户输入期间调用了 `abort()`，循环在恢复后会检测到 abort 标志并退出
-- **interrupt 只在转向边界生效**：与 redirect/abort 一样，interrupt 指令在每个循环轮次开始时被检查，不会中断正在进行的 LLM 调用或 tool 执行
+- **interrupt 在 Tool 内部阻塞**：与 redirect/abort 不同（它们在转向边界检查），interrupt 直接在 Tool 执行过程中暂停
 - **reset() 清除中断状态**：调用 `reset()` 会重置 interrupt 相关的所有状态
 
 ### 4.7 涉及文件变更

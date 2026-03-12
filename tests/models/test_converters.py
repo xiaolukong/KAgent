@@ -1,6 +1,6 @@
 """Tests for format converters."""
 
-import json
+from pydantic import BaseModel
 
 from kagent.domain.entities import Message, ToolCall, ToolDefinition
 from kagent.domain.enums import Role
@@ -13,7 +13,6 @@ from kagent.models.converters import (
     tools_to_gemini,
     tools_to_openai,
 )
-from pydantic import BaseModel
 
 
 class TestMessagesToOpenAI:
@@ -114,6 +113,7 @@ class TestParseStructuredOutput:
             x: int
 
         import pytest
+
         with pytest.raises(Exception):
             parse_structured_output("not json", MyModel)
 
@@ -122,5 +122,6 @@ class TestParseStructuredOutput:
             x: int
 
         import pytest
+
         with pytest.raises(ValueError):
             parse_structured_output(None, MyModel)

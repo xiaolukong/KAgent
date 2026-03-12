@@ -7,7 +7,6 @@ from typing import Any, get_args, get_origin
 
 from pydantic import BaseModel
 
-
 # Mapping from Python built-in types to JSON Schema types
 _PYTHON_TO_JSON: dict[type, str] = {
     str: "string",
@@ -53,7 +52,8 @@ def python_type_to_json_schema(annotation: Any) -> dict[str, Any]:
         return {"anyOf": [python_type_to_json_schema(a) for a in non_none]}
 
     # Literal["a", "b"]
-    from typing import Literal, get_args as _get_args
+    from typing import Literal
+    from typing import get_args as _get_args
 
     if get_origin(annotation) is Literal:
         values = _get_args(annotation)

@@ -11,7 +11,6 @@ from kagent.domain.entities import Message, ToolCall, ToolDefinition
 from kagent.domain.enums import Role
 from kagent.domain.model_types import ModelResponse, TokenUsage
 
-
 # ── OpenAI helpers ───────────────────────────────────────────────────────────
 
 
@@ -102,16 +101,18 @@ def messages_to_anthropic(messages: list[Message]) -> tuple[str | None, list[dic
             continue
 
         if msg.role == Role.TOOL:
-            result.append({
-                "role": "user",
-                "content": [
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": msg.tool_call_id,
-                        "content": msg.content or "",
-                    }
-                ],
-            })
+            result.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": msg.tool_call_id,
+                            "content": msg.content or "",
+                        }
+                    ],
+                }
+            )
             continue
 
         entry: dict[str, Any] = {"role": msg.role.value}
@@ -122,12 +123,14 @@ def messages_to_anthropic(messages: list[Message]) -> tuple[str | None, list[dic
 
         if msg.tool_calls:
             for tc in msg.tool_calls:
-                content_blocks.append({
-                    "type": "tool_use",
-                    "id": tc.id,
-                    "name": tc.name,
-                    "input": tc.arguments,
-                })
+                content_blocks.append(
+                    {
+                        "type": "tool_use",
+                        "id": tc.id,
+                        "name": tc.name,
+                        "input": tc.arguments,
+                    }
+                )
 
         entry["content"] = content_blocks if content_blocks else (msg.content or "")
         result.append(entry)
@@ -156,9 +159,7 @@ def anthropic_response_to_model_response(raw: Any) -> ModelResponse:
         if block.type == "text":
             content_text = block.text
         elif block.type == "tool_use":
-            tool_calls.append(
-                ToolCall(id=block.id, name=block.name, arguments=block.input)
-            )
+            tool_calls.append(ToolCall(id=block.id, name=block.name, arguments=block.input))
 
     usage = None
     if raw.usage:
@@ -200,9 +201,11 @@ def messages_to_gemini(messages: list[Message]) -> tuple[str | None, list[dict[s
 
         if msg.tool_calls:
             for tc in msg.tool_calls:
-                parts.append({
-                    "functionCall": {"name": tc.name, "args": tc.arguments},
-                })
+                parts.append(
+                    {
+                        "functionCall": {"name": tc.name, "args": tc.arguments},
+                    }
+                )
 
         if msg.role == Role.TOOL and msg.tool_call_id:
             parts = [

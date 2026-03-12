@@ -15,6 +15,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from kagent.common.errors import ModelError
+from kagent.domain.entities import ToolCall
 from kagent.domain.enums import StreamChunkType
 from kagent.domain.model_types import (
     ModelInfo,
@@ -24,7 +25,6 @@ from kagent.domain.model_types import (
     TokenUsage,
     ToolCallChunk,
 )
-from kagent.domain.entities import ToolCall
 from kagent.models.base import BaseModelProvider
 from kagent.models.config import ModelConfig
 from kagent.models.converters import messages_to_gemini, tools_to_gemini

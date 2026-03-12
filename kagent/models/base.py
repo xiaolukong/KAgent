@@ -56,13 +56,9 @@ class BaseModelProvider(ABC):
 
         if response_model is not None:
             try:
-                response.parsed = self._extract_structured_output(
-                    response, response_model
-                )
+                response.parsed = self._extract_structured_output(response, response_model)
             except Exception as exc:
-                raise ValidationError(
-                    f"Failed to parse structured output: {exc}"
-                ) from exc
+                raise ValidationError(f"Failed to parse structured output: {exc}") from exc
 
         return response
 
@@ -122,9 +118,7 @@ class BaseModelProvider(ABC):
                     parsed=parsed,
                 )
             except Exception as exc:
-                raise ValidationError(
-                    f"Failed to parse structured output: {exc}"
-                ) from exc
+                raise ValidationError(f"Failed to parse structured output: {exc}") from exc
 
     @abstractmethod
     def get_model_info(self) -> ModelInfo:

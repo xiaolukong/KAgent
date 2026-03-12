@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -17,25 +17,29 @@ class Event(BaseModel):
     event_type: EventType
     payload: dict[str, Any] = Field(default_factory=dict)
     source: str | None = None
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     correlation_id: str = Field(default_factory=lambda: uuid.uuid4().hex[:16])
 
 
 class AgentEvent(Event):
     """Event related to agent lifecycle."""
+
     pass
 
 
 class LLMEvent(Event):
     """Event related to LLM interactions."""
+
     pass
 
 
 class ToolEvent(Event):
     """Event related to tool registration or execution."""
+
     pass
 
 
 class SteeringEvent(Event):
     """Event related to runtime steering directives."""
+
     pass

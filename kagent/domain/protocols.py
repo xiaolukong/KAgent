@@ -11,7 +11,6 @@ from kagent.domain.entities import ToolDefinition, ToolResult
 from kagent.domain.events import Event
 from kagent.domain.model_types import ModelInfo, ModelRequest, ModelResponse, StreamChunk
 
-
 # ── Event Bus ────────────────────────────────────────────────────────────────
 
 EventHandler = Callable[[Event], Coroutine[Any, Any, None]]

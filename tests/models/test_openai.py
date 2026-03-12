@@ -41,9 +41,7 @@ class TestOpenAIProviderBase:
             text: str
             confidence: float
 
-        provider = MockModelProvider(
-            response_content='{"text": "hello", "confidence": 0.95}'
-        )
+        provider = MockModelProvider(response_content='{"text": "hello", "confidence": 0.95}')
         request = ModelRequest(messages=[Message(role=Role.USER, content="test")])
         response = await provider.complete(request, response_model=Answer)
         assert response.parsed is not None
@@ -53,6 +51,7 @@ class TestOpenAIProviderBase:
     @pytest.mark.asyncio
     async def test_complete_with_bad_json_raises(self):
         from pydantic import BaseModel
+
         from kagent.common.errors import ValidationError
 
         class Answer(BaseModel):

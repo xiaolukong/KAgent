@@ -31,10 +31,12 @@ class EventFilter:
     def __and__(self, other: EventFilter) -> EventFilter:
         """Combine two filters with AND logic."""
         return EventFilter(
-            condition=lambda payload: self.matches(
-                Event(event_type=self._pattern or "*", payload=payload)  # type: ignore[arg-type]
-            )
-            and other.matches(
-                Event(event_type=other._pattern or "*", payload=payload)  # type: ignore[arg-type]
+            condition=lambda payload: (
+                self.matches(
+                    Event(event_type=self._pattern or "*", payload=payload)  # type: ignore[arg-type]
+                )
+                and other.matches(
+                    Event(event_type=other._pattern or "*", payload=payload)  # type: ignore[arg-type]
+                )
             ),
         )

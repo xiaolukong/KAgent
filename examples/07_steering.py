@@ -59,7 +59,7 @@ async def demo_steer() -> None:
     @agent.on("steering.redirect")
     async def on_redirect(event: Event):
         directive = event.payload.get("directive", "")
-        print(f"  [steering event] redirect: \"{directive}\"")
+        print(f'  [steering event] redirect: "{directive}"')
 
     @agent.on("agent.loop.iteration")
     async def on_turn(event: Event):
@@ -76,9 +76,7 @@ async def demo_steer() -> None:
             "Research 'artificial intelligence' instead and summarize that."
         )
 
-    agent_task = asyncio.create_task(
-        agent.run("Research 'quantum computing' and 'black holes'.")
-    )
+    agent_task = asyncio.create_task(agent.run("Research 'quantum computing' and 'black holes'."))
     steer_task = asyncio.create_task(redirect_after_first_tool())
 
     result, _ = await asyncio.gather(agent_task, steer_task, return_exceptions=True)
@@ -171,8 +169,7 @@ async def demo_abort_streaming() -> None:
     agent = KAgent(
         model="openai:gpt-5",
         system_prompt=(
-            "You are an assistant. "
-            "When asked to research, call the research tool for each topic."
+            "You are an assistant. When asked to research, call the research tool for each topic."
         ),
         max_turns=10,
     )
@@ -196,9 +193,7 @@ async def demo_abort_streaming() -> None:
     collected_text: list[str] = []
 
     async def run_stream():
-        async for chunk in agent.stream(
-            "Research: neural networks, relativity."
-        ):
+        async for chunk in agent.stream("Research: neural networks, relativity."):
             if chunk.content:
                 collected_text.append(chunk.content)
 
@@ -215,7 +210,8 @@ async def demo_abort_streaming() -> None:
 
     streamed = "".join(collected_text)
     if streamed:
-        print(f"\n  Streamed text (partial): {streamed[:200]}{'...' if len(streamed) > 200 else ''}")
+        truncated = streamed[:200] + ("..." if len(streamed) > 200 else "")
+        print(f"\n  Streamed text (partial): {truncated}")
     else:
         print("\n  No text streamed (aborted before model produced final text).")
     print(f"  Tool was called {call_count} time(s) before abort (2 were requested).")

@@ -10,13 +10,13 @@ from pydantic import BaseModel
 from kagent.agent.agent import Agent
 from kagent.agent.config import AgentConfig
 from kagent.context.manager import ContextManager
-from kagent.domain.events import Event
 from kagent.domain.model_types import ModelResponse, StreamChunk
 from kagent.domain.protocols import EventHandler
 from kagent.events.bus import EventBus
 from kagent.interface.hooks import HookRegistry
 from kagent.models.factory import create_provider
-from kagent.tools.decorator import ToolWrapper, tool as tool_decorator
+from kagent.tools.decorator import ToolWrapper
+from kagent.tools.decorator import tool as tool_decorator
 from kagent.tools.registry import ToolRegistry
 
 
@@ -45,9 +45,7 @@ class KAgent:
         self._event_bus = EventBus()
 
         # 2. Model provider (Infrastructure)
-        self._model_provider = create_provider(
-            model, api_key=api_key, base_url=base_url
-        )
+        self._model_provider = create_provider(model, api_key=api_key, base_url=base_url)
 
         # 3. Tool registry
         self._tool_registry = ToolRegistry()
@@ -96,6 +94,7 @@ class KAgent:
             @agent.tool(name="custom")
             async def my_func(x: int) -> str: ...
         """
+
         def decorator(fn: Callable[..., Any]) -> ToolWrapper:
             wrapper = tool_decorator(fn, name=name, description=description)
             self._tool_registry.register(wrapper)
@@ -148,9 +147,7 @@ class KAgent:
         response_model: type[BaseModel] | None = None,
     ) -> AsyncIterator[StreamChunk]:
         """Run the agent with streaming output."""
-        async for chunk in self._agent.stream(
-            user_input, response_model=response_model
-        ):
+        async for chunk in self._agent.stream(user_input, response_model=response_model):
             yield chunk
 
     # ── Steering ─────────────────────────────────────────────────────────
@@ -163,13 +160,24 @@ class KAgent:
         """Abort the current run."""
         await self._agent.abort(reason)
 
-    async def interrupt(self, prompt: str) -> None:
-        """Pause the agent loop and request user input.
+    async def interrupt(self, prompt: str) -> str:
+        """Pause execution and wait for user input.
 
-        The loop suspends at the next turn boundary. Call ``resume()``
-        from another coroutine to provide user input and continue.
+        Publishes a ``steering.interrupt`` event, then blocks until
+        ``resume()`` is called.  Returns the user's reply string.
+
+        Can be called from within a tool to implement human-in-the-loop
+        confirmation::
+
+            @agent.tool
+            async def transfer(amount: int, account: str) -> str:
+                if amount > 1000:
+                    reply = await agent.interrupt(f"Transfer {amount}?")
+                    if reply.strip().lower() != "yes":
+                        return "Cancelled."
+                return f"Transferred {amount} to {account}"
         """
-        await self._agent.interrupt(prompt)
+        return await self._agent.interrupt(prompt)
 
     async def resume(self, user_input: str) -> None:
         """Provide user input to resume a paused agent loop."""

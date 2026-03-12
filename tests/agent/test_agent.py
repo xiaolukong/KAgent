@@ -10,7 +10,6 @@ from kagent.domain.events import Event
 from kagent.events.bus import EventBus
 from kagent.tools.decorator import tool
 from kagent.tools.registry import ToolRegistry
-
 from tests.conftest import MockModelProvider
 
 
@@ -43,9 +42,7 @@ def tool_agent():
     )
 
     config = AgentConfig(model="mock:model", system_prompt="Be helpful.", max_turns=5)
-    agent = Agent(
-        config=config, model_provider=provider, event_bus=bus, tool_registry=registry
-    )
+    agent = Agent(config=config, model_provider=provider, event_bus=bus, tool_registry=registry)
     return agent, bus
 
 
@@ -126,9 +123,7 @@ class TestAgentStructuredOutput:
             confidence: float
 
         bus = EventBus()
-        provider = MockModelProvider(
-            response_content='{"answer": "42", "confidence": 0.99}'
-        )
+        provider = MockModelProvider(response_content='{"answer": "42", "confidence": 0.99}')
         config = AgentConfig(model="mock:model")
         agent = Agent(config=config, model_provider=provider, event_bus=bus)
 

@@ -1,6 +1,6 @@
 """Tests for domain entities."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from kagent.domain.entities import AgentState, Message, ToolCall, ToolDefinition, ToolResult
 from kagent.domain.enums import Role, ToolCallStatus

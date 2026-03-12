@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class Role(str, Enum):
+class Role(StrEnum):
     """Message role in a conversation."""
 
     USER = "user"
@@ -14,7 +14,7 @@ class Role(str, Enum):
     TOOL = "tool"
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     """All event types in the KAgent event system."""
 
     # Agent lifecycle
@@ -45,7 +45,7 @@ class EventType(str, Enum):
     STEERING_RESUME = "steering.resume"
 
 
-class ModelProviderType(str, Enum):
+class ModelProviderType(StrEnum):
     """Supported model provider types."""
 
     OPENAI = "openai"
@@ -53,7 +53,7 @@ class ModelProviderType(str, Enum):
     GEMINI = "gemini"
 
 
-class ToolCallStatus(str, Enum):
+class ToolCallStatus(StrEnum):
     """Status of a tool call execution."""
 
     PENDING = "pending"
@@ -62,7 +62,7 @@ class ToolCallStatus(str, Enum):
     ERROR = "error"
 
 
-class StreamChunkType(str, Enum):
+class StreamChunkType(StrEnum):
     """Types of stream chunks emitted by model providers."""
 
     TEXT_DELTA = "text_delta"

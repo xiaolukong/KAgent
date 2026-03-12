@@ -34,8 +34,10 @@ class Agent:
         self._config = config
         self._event_bus = event_bus
         self._tool_registry = tool_registry if tool_registry is not None else ToolRegistry()
-        self._context = context_manager if context_manager is not None else ContextManager(
-            max_tokens=config.max_context_tokens
+        self._context = (
+            context_manager
+            if context_manager is not None
+            else ContextManager(max_tokens=config.max_context_tokens)
         )
         self._tool_executor = ToolExecutor(self._tool_registry, event_bus)
         self._steering = SteeringController(event_bus)
@@ -119,9 +121,7 @@ class Agent:
         )
 
         try:
-            async for chunk in self._loop.run_stream(
-                user_input, response_model=response_model
-            ):
+            async for chunk in self._loop.run_stream(user_input, response_model=response_model):
                 yield chunk
 
             await self._event_bus.publish(
@@ -161,11 +161,22 @@ class Agent:
             )
         )
 
-    async def interrupt(self, prompt: str) -> None:
-        """Pause the agent loop and request user input.
+    async def interrupt(self, prompt: str) -> str:
+        """Pause execution and wait for user input.
 
-        The agent loop will suspend at the next turn boundary and wait
-        until ``resume()`` is called with the user's reply.
+        Publishes a ``steering.interrupt`` event (so an event hook can
+        collect user input), then blocks until ``resume()`` is called.
+
+        Returns the user's reply string.  This makes it safe to call
+        directly inside a tool function::
+
+            @agent.tool
+            async def dangerous_action(x: int) -> str:
+                if x > threshold:
+                    reply = await agent.interrupt("Proceed? (yes/no)")
+                    if reply.strip().lower() != "yes":
+                        return "Cancelled by user."
+                ...
         """
         await self._event_bus.publish(
             SteeringEvent(
@@ -174,6 +185,7 @@ class Agent:
                 source="agent",
             )
         )
+        return await self._steering.wait_for_resume()
 
     async def resume(self, user_input: str) -> None:
         """Provide user input to resume a paused agent loop.

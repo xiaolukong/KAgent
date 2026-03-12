@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from kagent.domain.entities import AgentState, Message
 from kagent.context.window import ContextWindow
+from kagent.domain.entities import AgentState, Message
 
 
 class ContextManager:

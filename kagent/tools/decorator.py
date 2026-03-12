@@ -11,7 +11,7 @@ from typing import Any
 
 from pydantic import TypeAdapter
 
-from kagent.common.errors import ToolError, ValidationError
+from kagent.common.errors import ValidationError
 from kagent.common.utils import Timer
 from kagent.domain.entities import ToolDefinition, ToolResult
 from kagent.domain.enums import ToolCallStatus
@@ -117,6 +117,7 @@ def tool(
         @tool(name="custom_name", description="Does something")
         async def my_tool(x: int) -> str: ...
     """
+
     def decorator(fn: Callable[..., Any]) -> ToolWrapper:
         wrapper = ToolWrapper(fn, name=name, description=description)
         functools.update_wrapper(wrapper, fn)

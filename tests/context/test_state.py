@@ -4,7 +4,6 @@ import pytest
 
 from kagent.context.state import StateManager
 from kagent.context.stores.memory import InMemoryStateStore
-from kagent.domain.enums import EventType
 from kagent.domain.events import Event
 from kagent.events.bus import EventBus
 

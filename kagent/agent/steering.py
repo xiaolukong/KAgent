@@ -64,7 +64,6 @@ class SteeringController:
         self._interrupt_response = None
         self._interrupted = True
         self._interrupt_event.clear()
-        await self._steering_queue.put(event)
 
     async def _on_resume(self, event: SteeringEvent) -> None:  # type: ignore[override]
         self._interrupt_response = event.payload.get("user_input", "")

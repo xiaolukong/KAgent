@@ -45,9 +45,7 @@ class EventBus:
             try:
                 await handler(event)
             except Exception:
-                logger.exception(
-                    "Handler error for event %s", event_type
-                )
+                logger.exception("Handler error for event %s", event_type)
 
     # ── Subscribing ──────────────────────────────────────────────────────
 

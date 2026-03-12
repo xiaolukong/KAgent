@@ -515,7 +515,7 @@ Steering 允许在 Agent 运行过程中从外部干预其行为。它设计为*
 |------|------|-------------|
 | `agent.steer(directive)` | 将 directive 作为新的 user message 注入对话上下文 | **继续** — 模型响应新指令 |
 | `agent.abort(reason)` | 设置 abort 标志 | **停止** — 循环在下一轮次边界退出 |
-| `agent.interrupt(prompt)` | 暂停循环，等待用户输入 | **暂停** — 等待 `resume()` 后继续 |
+| `agent.interrupt(prompt)` | 暂停执行，等待用户输入，返回回复 | **暂停** — 返回用户回复后 Tool 继续 |
 
 ### Steer（重定向）
 
@@ -671,14 +671,14 @@ await asyncio.gather(stream_task, abort_task, return_exceptions=True)
 
 ### Interrupt（暂停并等待用户输入）
 
-使用 `agent.interrupt(prompt)` 暂停 Agent 循环，向用户发送一条消息，然后等待用户通过 `agent.resume(user_input)` 回复。回复内容会作为新的 user message 注入到对话上下文中，Agent 继续运行。
+使用 `await agent.interrupt(prompt)` 在 Tool 内部暂停执行，向用户发送一条消息，等待用户通过 `agent.resume(user_input)` 回复，然后**返回用户的回复字符串**。
 
 典型场景：
-- Agent 执行多步任务时需要用户确认
-- Tool 执行前需要用户授权（如支付、删除等危险操作）
-- Agent 发现信息不足，需要用户补充信息
+- Tool 执行前需要用户确认（如转账、删除等危险操作）
+- Tool 发现参数异常，需要用户二次确认
+- Agent 执行多步任务时需要用户提供额外信息
 
-**推荐模式**：在 `steering.interrupt` 事件钩子中收集用户输入并调用 `resume()`。这样 interrupt/resume 的配对由事件驱动自动完成，不需要额外的协程来计时。
+**核心模式**：在 Tool 内部直接 `await agent.interrupt()`，它会阻塞直到用户回复。在 `steering.interrupt` 事件钩子中收集用户输入并调用 `resume()`。
 
 ```python
 import asyncio
@@ -702,49 +702,34 @@ async def main():
     agent = KAgent(
         model="openai:gpt-5",
         system_prompt=(
-            "You are a research assistant. "
-            "Always call the research tool for each topic."
+            "You are a banking assistant. "
+            "When asked to transfer money, call the transfer_money tool."
         ),
         max_turns=10,
     )
 
-    call_count = 0
-
     @agent.tool
-    async def research(topic: str) -> str:
-        """Research a topic and return findings."""
-        nonlocal call_count
-        call_count += 1
-        print(f"[tool] research('{topic}') — call #{call_count}")
-        await asyncio.sleep(0.3)
-        return f"Key finding: {topic} is a rapidly evolving field."
+    async def transfer_money(amount: int, account: str) -> str:
+        """Transfer money to an account."""
+        if amount > 1000:
+            # 直接在 tool 内部触发中断，等待用户确认
+            reply = await agent.interrupt(
+                f"Large transfer: {amount} to {account}. Approve? (yes/no)"
+            )
+            if reply.strip().lower() != "yes":
+                return f"Transfer of {amount} to {account} was cancelled by user."
+        return f"Successfully transferred {amount} to {account}."
 
-    # 核心模式：在 interrupt 事件钩子中收集用户输入并 resume
+    # 事件钩子：收集用户输入并 resume
     @agent.on("steering.interrupt")
     async def on_interrupt(event: Event):
         prompt = event.payload.get("prompt", "")
-        print(f"\n[Agent asks] {prompt}")
-        user_reply = await async_input("Your response > ")
+        print(f"\n[Confirmation required] {prompt}")
+        user_reply = await async_input("Your answer > ")
         await agent.resume(user_reply.strip())
 
-    # 第一个 tool 完成后暂停 agent
-    async def interrupt_after_first_tool():
-        while call_count < 1:
-            await asyncio.sleep(0.1)
-        await agent.interrupt(
-            "I've researched the first topic. "
-            "Should I continue or focus on something else?"
-        )
-
-    agent_task = asyncio.create_task(
-        agent.run("Research 'quantum computing' and 'machine learning'.")
-    )
-    interrupt_task = asyncio.create_task(interrupt_after_first_tool())
-
-    result, _ = await asyncio.gather(
-        agent_task, interrupt_task, return_exceptions=True
-    )
-    print(f"Final response: {result.content}")
+    result = await agent.run("Transfer 5000 to Bob's account.")
+    print(f"Result: {result.content}")
 
 asyncio.run(main())
 ```
@@ -752,22 +737,27 @@ asyncio.run(main())
 **工作流程：**
 
 ```
-用户: "Research quantum computing and machine learning"
+用户: "Transfer 5000 to Bob's account"
   ↓
-Agent 调用 research("quantum computing")
+模型调用 transfer_money(amount=5000, account="Bob")
   ↓
-interrupt("Should I continue or focus on something else?")  ← 外部协程发送
+Tool 检测到 amount > 1000，调用 await agent.interrupt(...)
   ↓
-Agent 循环暂停，发布 steering.interrupt 事件
+发布 steering.interrupt 事件 → 事件钩子提示用户
   ↓  ... 等待用户输入 ...
-resume("Focus on quantum computing applications in healthcare.")  ← 用户回复
+用户输入 "yes" → 事件钩子调用 agent.resume("yes")
   ↓
-Agent 循环恢复，注入用户回复为 user message
+interrupt() 返回 "yes"，Tool 继续执行转账
   ↓
-Agent 调用 research("quantum computing applications in healthcare")  ← 遵循用户指示
+Tool 返回 "Successfully transferred 5000 to Bob."
   ↓
-Agent 返回总结
+模型生成最终回复
 ```
+
+**关键点：**
+- `interrupt()` 返回 `str`（用户的回复），可以直接在 Tool 里使用返回值做逻辑判断
+- 不需要并行协程 — interrupt 在 Tool 执行过程中自然阻塞
+- 事件钩子 `steering.interrupt` 负责展示 prompt 和收集用户输入
 
 ### Steering 工作原理
 
@@ -779,21 +769,21 @@ Steering 使用双队列系统：
                         │                                      │
   agent.steer() ──────▶ │  steering_queue (高优先)              │
   agent.abort() ──────▶ │   ├─ REDIRECT → 注入 user message，  │
-  agent.interrupt() ──▶ │   │    继续循环                       │
-                        │   ├─ INTERRUPT → 暂停循环，           │
-                        │   │    await wait_for_resume()       │
+                        │   │    继续循环                       │
                         │   └─ ABORT → 设置标志，退出循环       │
                         │                                      │
+  agent.interrupt() ──▶ │  (不经过队列，直接在 Tool 内部阻塞)    │
+                        │   └─ await wait_for_resume()         │
   agent.resume() ─────▶ │  _interrupt_event.set() → 解除暂停   │
                         │                                      │
   inject_message ─────▶ │  message_queue (跟随消息)             │ ──▶ tool 执行完成后注入
                         └──────────────────────────────────────┘
 ```
 
-- **steering_queue**：高优先级指令（redirect / abort / interrupt），在每个循环轮次**开始时**检查
+- **steering_queue**：高优先级指令（redirect / abort），在每个循环轮次**开始时**检查
   - **REDIRECT**（`steer()`）：将 directive 注入为 `Role.USER` 消息，循环**继续**
-  - **INTERRUPT**（`interrupt()`）：暂停循环，`await wait_for_resume()` 等待用户输入，收到后注入为 `Role.USER` 消息，循环**继续**
   - **ABORT**（`abort()`）：设置 `is_aborted` 标志，循环在下一轮次边界**退出**
+- **interrupt()**：不经过 steering_queue，而是**直接在 Tool 内部阻塞**。Tool 调用 `await agent.interrupt(prompt)`，发布事件后等待 `resume()`，返回用户回复
 - **message_queue**：跟随消息，在 tool 执行**完成后**注入到对话上下文中
 - **_interrupt_event**：`asyncio.Event` 信号量，`interrupt()` 时 clear（暂停），`resume()` 时 set（恢复）
 - 所有 steering 操作通过 EventBus 传递，完全解耦
@@ -943,10 +933,10 @@ async for chunk in agent.stream("input"):                      # 流式
     ...
 
 # Steering
-await agent.steer("directive")   # 重定向：注入新指令，循环继续
-await agent.abort("reason")      # 中止：循环在下一轮次边界退出
-await agent.interrupt("prompt")  # 暂停：等待用户输入后继续
-await agent.resume("user_input") # 恢复：提供用户输入，解除暂停
+await agent.steer("directive")          # 重定向：注入新指令，循环继续
+await agent.abort("reason")             # 中止：循环在下一轮次边界退出
+reply = await agent.interrupt("prompt") # 暂停：阻塞直到用户回复，返回 str
+await agent.resume("user_input")        # 恢复：提供用户输入，解除暂停
 ```
 
 ### 事件模式速查

@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
-from typing import Any
 from collections.abc import AsyncIterator
 
 import pytest
 
 from kagent.domain.entities import Message, ToolCall, ToolDefinition
-from kagent.domain.enums import EventType, Role, StreamChunkType
-from kagent.domain.events import Event
+from kagent.domain.enums import Role, StreamChunkType
 from kagent.domain.model_types import (
     ModelInfo,
     ModelRequest,
@@ -23,7 +20,6 @@ from kagent.models.base import BaseModelProvider
 from kagent.models.config import ModelConfig
 from kagent.tools.decorator import tool
 from kagent.tools.registry import ToolRegistry
-
 
 # ── Mock Model Provider ─────────────────────────────────────────────────────
 
@@ -64,11 +60,17 @@ class MockModelProvider(BaseModelProvider):
     async def _do_stream(self, request: ModelRequest) -> AsyncIterator[StreamChunk]:
         self._call_count += 1
         if self._tool_calls and self._call_count == 1:
+            import json as _json
+
+            from kagent.domain.model_types import ToolCallChunk
+
             for tc in self._tool_calls:
                 yield StreamChunk(
                     chunk_type=StreamChunkType.TOOL_CALL_START,
-                    tool_call=__import__("kagent.domain.model_types", fromlist=["ToolCallChunk"]).ToolCallChunk(
-                        id=tc.id, name=tc.name, arguments_delta=__import__("json").dumps(tc.arguments),
+                    tool_call=ToolCallChunk(
+                        id=tc.id,
+                        name=tc.name,
+                        arguments_delta=_json.dumps(tc.arguments),
                     ),
                 )
             return

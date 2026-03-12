@@ -51,8 +51,7 @@ class TestPythonTypeToJsonSchema:
 
 class TestFunctionToJsonSchema:
     def test_basic_function(self):
-        def func(a: int, b: str) -> bool:
-            ...
+        def func(a: int, b: str) -> bool: ...
 
         schema = function_to_json_schema(func)
         assert schema["type"] == "object"
@@ -61,23 +60,20 @@ class TestFunctionToJsonSchema:
         assert schema["required"] == ["a", "b"]
 
     def test_with_defaults(self):
-        def func(a: int, b: str = "default") -> bool:
-            ...
+        def func(a: int, b: str = "default") -> bool: ...
 
         schema = function_to_json_schema(func)
         assert schema["required"] == ["a"]
         assert schema["properties"]["b"]["default"] == "default"
 
     def test_skips_self(self):
-        def method(self, x: int) -> int:
-            ...
+        def method(self, x: int) -> int: ...
 
         schema = function_to_json_schema(method)
         assert "self" not in schema["properties"]
 
     def test_no_annotations(self):
-        def func(a, b):
-            ...
+        def func(a, b): ...
 
         schema = function_to_json_schema(func)
         assert "a" in schema["properties"]

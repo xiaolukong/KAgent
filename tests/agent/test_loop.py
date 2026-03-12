@@ -1,22 +1,18 @@
 """Tests for AgentLoop orchestration."""
 
-import json
-
 import pytest
 
-from kagent.agent.config import AgentConfig
 from kagent.agent.loop import AgentLoop
 from kagent.agent.prompt_builder import PromptBuilder
 from kagent.agent.steering import SteeringController
 from kagent.context.manager import ContextManager
-from kagent.domain.entities import Message, ToolCall
-from kagent.domain.enums import EventType, Role
+from kagent.domain.entities import ToolCall
+from kagent.domain.enums import EventType
 from kagent.domain.events import Event
 from kagent.events.bus import EventBus
 from kagent.tools.decorator import tool
 from kagent.tools.executor import ToolExecutor
 from kagent.tools.registry import ToolRegistry
-
 from tests.conftest import MockModelProvider
 
 
@@ -82,10 +78,10 @@ class TestAgentLoopRun:
         provider._tool_calls = [tc]  # type: ignore
 
         # Patch so it always returns tool calls
-        original = provider._do_complete
 
         async def always_tool_calls(request):
             from kagent.domain.model_types import ModelResponse, TokenUsage
+
             return ModelResponse(
                 content=None,
                 tool_calls=[tc],

@@ -127,9 +127,7 @@ class AnthropicProvider(OpenAICompatMixin, BaseModelProvider):
             # Native mode — Anthropic tool_choice format
             tool_choice = {"type": "tool", "name": struct_tool.name}
 
-        return request.model_copy(
-            update={"tools": existing_tools, "tool_choice": tool_choice}
-        )
+        return request.model_copy(update={"tools": existing_tools, "tool_choice": tool_choice})
 
     # ── Non-streaming ─────────────────────────────────────────────────────
 

@@ -5,7 +5,6 @@ import pytest
 from kagent.domain.entities import Message
 from kagent.domain.enums import Role
 from kagent.domain.model_types import ModelRequest
-
 from tests.conftest import MockModelProvider
 
 

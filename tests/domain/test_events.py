@@ -48,12 +48,23 @@ class TestEventType:
     def test_all_event_types_exist(self):
         """Verify all 17 event types from the design doc are defined."""
         expected = [
-            "agent.started", "agent.loop.iteration", "agent.loop.completed",
-            "agent.error", "agent.state.changed",
-            "llm.request.sent", "llm.stream.chunk", "llm.stream.complete",
-            "llm.response.received", "llm.error",
-            "tool.registered", "tool.call.started", "tool.call.completed", "tool.call.error",
-            "steering.redirect", "steering.inject_message", "steering.abort",
+            "agent.started",
+            "agent.loop.iteration",
+            "agent.loop.completed",
+            "agent.error",
+            "agent.state.changed",
+            "llm.request.sent",
+            "llm.stream.chunk",
+            "llm.stream.complete",
+            "llm.response.received",
+            "llm.error",
+            "tool.registered",
+            "tool.call.started",
+            "tool.call.completed",
+            "tool.call.error",
+            "steering.redirect",
+            "steering.inject_message",
+            "steering.abort",
         ]
         actual = [e.value for e in EventType]
         for exp in expected:

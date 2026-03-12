@@ -8,15 +8,15 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from kagent.agent.prompt_builder import PromptBuilder
+from kagent.agent.steering import SteeringController
 from kagent.common.logging import get_logger
 from kagent.context.manager import ContextManager
-from kagent.domain.entities import Message, ToolDefinition
+from kagent.domain.entities import Message
 from kagent.domain.enums import EventType, Role, StreamChunkType
 from kagent.domain.events import AgentEvent, LLMEvent
 from kagent.domain.model_types import ModelResponse, StreamChunk
 from kagent.domain.protocols import IEventBus, IModelProvider
-from kagent.agent.prompt_builder import PromptBuilder
-from kagent.agent.steering import SteeringController
 from kagent.tools.executor import ToolExecutor
 from kagent.tools.registry import ToolRegistry
 
@@ -69,24 +69,8 @@ class AgentLoop:
                     # Redirect: inject the directive as a user message and continue
                     redirect_text = directive.payload.get("directive", "")
                     if redirect_text:
-                        self._context.add_message(
-                            Message(role=Role.USER, content=redirect_text)
-                        )
+                        self._context.add_message(Message(role=Role.USER, content=redirect_text))
                     # Continue the loop — the model will respond to the new instruction
-                elif directive.event_type == EventType.STEERING_INTERRUPT:
-                    # Interrupt: pause and wait for user input
-                    prompt = directive.payload.get("prompt", "")
-                    logger.info("Interrupt requested: %s", prompt)
-
-                    user_input = await self._steering.wait_for_resume()
-
-                    if self._steering.is_aborted:
-                        break
-
-                    self._context.add_message(
-                        Message(role=Role.USER, content=user_input)
-                    )
-                    # Continue the loop with user's response
                 else:
                     break
 
@@ -139,12 +123,13 @@ class AgentLoop:
 
             # Execute tool calls
             for tc in response.tool_calls or []:
-                result = await self._tool_executor.execute(
-                    tc.name, tc.arguments, call_id=tc.id
+                result = await self._tool_executor.execute(tc.name, tc.arguments, call_id=tc.id)
+                tool_content = (
+                    json.dumps(result.result) if result.result is not None else result.error
                 )
                 tool_msg = Message(
                     role=Role.TOOL,
-                    content=json.dumps(result.result) if result.result is not None else result.error,
+                    content=tool_content,
                     tool_call_id=tc.id,
                     metadata={"tool_name": tc.name},
                 )
@@ -176,21 +161,7 @@ class AgentLoop:
                 if directive.event_type == EventType.STEERING_REDIRECT:
                     redirect_text = directive.payload.get("directive", "")
                     if redirect_text:
-                        self._context.add_message(
-                            Message(role=Role.USER, content=redirect_text)
-                        )
-                elif directive.event_type == EventType.STEERING_INTERRUPT:
-                    prompt = directive.payload.get("prompt", "")
-                    logger.info("Interrupt requested (stream): %s", prompt)
-
-                    user_input = await self._steering.wait_for_resume()
-
-                    if self._steering.is_aborted:
-                        break
-
-                    self._context.add_message(
-                        Message(role=Role.USER, content=user_input)
-                    )
+                        self._context.add_message(Message(role=Role.USER, content=redirect_text))
                 else:
                     break
 
@@ -224,7 +195,13 @@ class AgentLoop:
                 await self._event_bus.publish(
                     LLMEvent(
                         event_type=EventType.LLM_STREAM_CHUNK,
-                        payload={"chunk_type": chunk.chunk_type.value if hasattr(chunk.chunk_type, 'value') else str(chunk.chunk_type)},
+                        payload={
+                            "chunk_type": (
+                                chunk.chunk_type.value
+                                if hasattr(chunk.chunk_type, "value")
+                                else str(chunk.chunk_type)
+                            ),
+                        },
                         source="agent_loop",
                     )
                 )
@@ -263,9 +240,7 @@ class AgentLoop:
                     args = json.loads(tc_data["arguments"]) if tc_data["arguments"] else {}
                 except json.JSONDecodeError:
                     args = {}
-                tool_calls.append(
-                    ToolCall(id=tc_data["id"], name=tc_data["name"], arguments=args)
-                )
+                tool_calls.append(ToolCall(id=tc_data["id"], name=tc_data["name"], arguments=args))
 
             full_content = "".join(collected_content) if collected_content else None
 
@@ -283,12 +258,13 @@ class AgentLoop:
 
             # Execute tool calls
             for tc in tool_calls:
-                result = await self._tool_executor.execute(
-                    tc.name, tc.arguments, call_id=tc.id
+                result = await self._tool_executor.execute(tc.name, tc.arguments, call_id=tc.id)
+                tool_content = (
+                    json.dumps(result.result) if result.result is not None else result.error
                 )
                 tool_msg = Message(
                     role=Role.TOOL,
-                    content=json.dumps(result.result) if result.result is not None else result.error,
+                    content=tool_content,
                     tool_call_id=tc.id,
                     metadata={"tool_name": tc.name},
                 )

@@ -1,7 +1,5 @@
 """Tests for ContextManager."""
 
-import pytest
-
 from kagent.context.manager import ContextManager
 from kagent.domain.entities import Message
 from kagent.domain.enums import Role

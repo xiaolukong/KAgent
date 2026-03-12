@@ -1,13 +1,13 @@
 """Tests for KAgent Facade (end-to-end integration)."""
 
+# We need to monkey-patch the factory to return a mock provider
+from unittest.mock import patch
+
 import pytest
 
 from kagent.domain.enums import EventType
 from kagent.domain.events import Event
 from kagent.interface.kagent import KAgent
-
-# We need to monkey-patch the factory to return a mock provider
-from unittest.mock import patch
 from tests.conftest import MockModelProvider
 
 

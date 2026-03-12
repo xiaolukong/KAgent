@@ -94,7 +94,8 @@ class TestSteeringInterrupt:
         assert controller.is_interrupted is True
 
     @pytest.mark.asyncio
-    async def test_interrupt_queues_directive(self, steering_setup):
+    async def test_interrupt_does_not_queue_directive(self, steering_setup):
+        """Interrupt no longer queues a steering directive — it blocks inline."""
         controller, bus = steering_setup
         await bus.publish(
             SteeringEvent(
@@ -102,10 +103,9 @@ class TestSteeringInterrupt:
                 payload={"prompt": "Please confirm"},
             )
         )
+        # Interrupt is handled inline (via wait_for_resume), not via the queue
         directive = controller.get_pending_directive()
-        assert directive is not None
-        assert directive.event_type == EventType.STEERING_INTERRUPT
-        assert directive.payload["prompt"] == "Please confirm"
+        assert directive is None
 
     @pytest.mark.asyncio
     async def test_interrupt_stores_prompt(self, steering_setup):
