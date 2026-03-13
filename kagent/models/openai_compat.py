@@ -101,6 +101,14 @@ class OpenAICompatMixin:
 
             delta = event.choices[0].delta
 
+            # Reasoning/thinking content (proxy mode for Anthropic/Gemini/DeepSeek)
+            reasoning = getattr(delta, "reasoning_content", None)
+            if reasoning:
+                yield StreamChunk(
+                    chunk_type=StreamChunkType.THINKING_DELTA,
+                    thinking=reasoning,
+                )
+
             if delta.content:
                 yield StreamChunk(
                     chunk_type=StreamChunkType.TEXT_DELTA,

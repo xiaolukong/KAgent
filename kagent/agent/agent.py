@@ -7,10 +7,17 @@ from collections.abc import AsyncIterator
 from pydantic import BaseModel
 
 from kagent.agent.config import AgentConfig
+from kagent.agent.interceptor import InterceptorFn, InterceptorPipeline
 from kagent.agent.loop import AgentLoop
 from kagent.agent.prompt_builder import PromptBuilder
 from kagent.agent.steering import SteeringController
 from kagent.context.manager import ContextManager
+from kagent.context.transformer import (
+    ContextTransformer,
+    TransformFn,
+    filter_internal_messages,
+    strip_thinking_from_context,
+)
 from kagent.domain.enums import EventType
 from kagent.domain.events import AgentEvent, SteeringEvent
 from kagent.domain.model_types import ModelResponse, StreamChunk
@@ -41,6 +48,11 @@ class Agent:
         )
         self._tool_executor = ToolExecutor(self._tool_registry, event_bus)
         self._steering = SteeringController(event_bus)
+        self._pipeline = InterceptorPipeline()
+        self._transformer = ContextTransformer()
+        # Register built-in default transforms
+        self._transformer.add(filter_internal_messages, priority=-100)
+        self._transformer.add(strip_thinking_from_context, priority=-100)
         self._prompt_builder = PromptBuilder(
             system_prompt=config.system_prompt,
             temperature=config.temperature,
@@ -55,6 +67,8 @@ class Agent:
             context_manager=self._context,
             prompt_builder=self._prompt_builder,
             steering=self._steering,
+            pipeline=self._pipeline,
+            transformer=self._transformer,
             max_turns=config.max_turns,
         )
 
@@ -69,6 +83,32 @@ class Agent:
     @property
     def context(self) -> ContextManager:
         return self._context
+
+    @property
+    def pipeline(self) -> InterceptorPipeline:
+        return self._pipeline
+
+    @property
+    def transformer(self) -> ContextTransformer:
+        return self._transformer
+
+    def intercept(
+        self,
+        hook: str,
+        fn: InterceptorFn,
+        *,
+        priority: int = 0,
+    ) -> str:
+        """Register an interceptor on a hook point.  Returns an ID for removal."""
+        return self._pipeline.add(hook, fn, priority=priority)
+
+    def add_transform(self, fn: TransformFn, *, priority: int = 0) -> None:
+        """Register a context transform function.
+
+        Transforms convert App-layer messages to LLM-layer messages before
+        each prompt build.  Higher *priority* runs first.
+        """
+        self._transformer.add(fn, priority=priority)
 
     async def run(
         self,

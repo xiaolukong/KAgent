@@ -162,7 +162,9 @@ class AnthropicProvider(OpenAICompatMixin, BaseModelProvider):
                 async for event in stream:
                     if event.type == "content_block_start":
                         block = event.content_block
-                        if block.type == "text":
+                        if block.type == "thinking":
+                            pass  # thinking content will arrive in deltas
+                        elif block.type == "text":
                             pass  # text will arrive in deltas
                         elif block.type == "tool_use":
                             yield StreamChunk(
@@ -174,7 +176,12 @@ class AnthropicProvider(OpenAICompatMixin, BaseModelProvider):
                             )
                     elif event.type == "content_block_delta":
                         delta = event.delta
-                        if delta.type == "text_delta":
+                        if delta.type == "thinking_delta":
+                            yield StreamChunk(
+                                chunk_type=StreamChunkType.THINKING_DELTA,
+                                thinking=delta.thinking,
+                            )
+                        elif delta.type == "text_delta":
                             yield StreamChunk(
                                 chunk_type=StreamChunkType.TEXT_DELTA,
                                 content=delta.text,

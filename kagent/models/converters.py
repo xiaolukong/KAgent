@@ -154,9 +154,12 @@ def anthropic_response_to_model_response(raw: Any) -> ModelResponse:
     """Convert an Anthropic Message response to a domain ModelResponse."""
     content_text: str | None = None
     tool_calls: list[ToolCall] = []
+    thinking_parts: list[str] = []
 
     for block in raw.content:
-        if block.type == "text":
+        if block.type == "thinking":
+            thinking_parts.append(block.thinking)
+        elif block.type == "text":
             content_text = block.text
         elif block.type == "tool_use":
             tool_calls.append(ToolCall(id=block.id, name=block.name, arguments=block.input))
@@ -169,11 +172,16 @@ def anthropic_response_to_model_response(raw: Any) -> ModelResponse:
             total_tokens=raw.usage.input_tokens + raw.usage.output_tokens,
         )
 
+    metadata: dict[str, Any] = {}
+    if thinking_parts:
+        metadata["thinking"] = "".join(thinking_parts)
+
     return ModelResponse(
         content=content_text,
         tool_calls=tool_calls if tool_calls else None,
         usage=usage,
         model=raw.model,
+        metadata=metadata,
     )
 
 

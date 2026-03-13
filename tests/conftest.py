@@ -31,11 +31,13 @@ class MockModelProvider(BaseModelProvider):
         self,
         response_content: str = "Hello from mock!",
         tool_calls: list[ToolCall] | None = None,
+        thinking_content: str | None = None,
         config: ModelConfig | None = None,
     ) -> None:
         super().__init__(config or ModelConfig(api_key="mock-key", model_name="mock-model"))
         self._response_content = response_content
         self._tool_calls = tool_calls
+        self._thinking_content = thinking_content
         self._call_count = 0
 
     def get_model_info(self) -> ModelInfo:
@@ -43,6 +45,9 @@ class MockModelProvider(BaseModelProvider):
 
     async def _do_complete(self, request: ModelRequest) -> ModelResponse:
         self._call_count += 1
+        metadata: dict = {}
+        if self._thinking_content:
+            metadata["thinking"] = self._thinking_content
         # If tool_calls configured and this is the first call, return tool calls
         if self._tool_calls and self._call_count == 1:
             return ModelResponse(
@@ -50,11 +55,13 @@ class MockModelProvider(BaseModelProvider):
                 tool_calls=self._tool_calls,
                 usage=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
                 model="mock-model",
+                metadata=metadata,
             )
         return ModelResponse(
             content=self._response_content,
             usage=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
             model="mock-model",
+            metadata=metadata,
         )
 
     async def _do_stream(self, request: ModelRequest) -> AsyncIterator[StreamChunk]:
@@ -74,6 +81,14 @@ class MockModelProvider(BaseModelProvider):
                     ),
                 )
             return
+
+        # Yield thinking chunks before text if configured
+        if self._thinking_content:
+            for char in self._thinking_content:
+                yield StreamChunk(
+                    chunk_type=StreamChunkType.THINKING_DELTA,
+                    thinking=char,
+                )
 
         words = self._response_content.split()
         for i, word in enumerate(words):

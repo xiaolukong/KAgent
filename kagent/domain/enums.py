@@ -66,6 +66,7 @@ class StreamChunkType(StrEnum):
     """Types of stream chunks emitted by model providers."""
 
     TEXT_DELTA = "text_delta"
+    THINKING_DELTA = "thinking_delta"
     TOOL_CALL_START = "tool_call_start"
     TOOL_CALL_DELTA = "tool_call_delta"
     TOOL_CALL_END = "tool_call_end"

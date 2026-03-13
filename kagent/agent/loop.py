@@ -8,11 +8,13 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from kagent.agent.interceptor import InterceptBlockedError, InterceptorPipeline
 from kagent.agent.prompt_builder import PromptBuilder
 from kagent.agent.steering import SteeringController
 from kagent.common.logging import get_logger
 from kagent.context.manager import ContextManager
-from kagent.domain.entities import Message
+from kagent.context.transformer import ContextTransformer
+from kagent.domain.entities import Message, ToolCall
 from kagent.domain.enums import EventType, Role, StreamChunkType
 from kagent.domain.events import AgentEvent, LLMEvent
 from kagent.domain.model_types import ModelResponse, StreamChunk
@@ -36,6 +38,8 @@ class AgentLoop:
         context_manager: ContextManager,
         prompt_builder: PromptBuilder,
         steering: SteeringController,
+        pipeline: InterceptorPipeline | None = None,
+        transformer: ContextTransformer | None = None,
         max_turns: int = 10,
     ) -> None:
         self._provider = model_provider
@@ -45,6 +49,8 @@ class AgentLoop:
         self._context = context_manager
         self._prompt_builder = prompt_builder
         self._steering = steering
+        self._pipeline = pipeline or InterceptorPipeline()
+        self._transformer = transformer or ContextTransformer()
         self._max_turns = max_turns
 
     async def run(
@@ -66,11 +72,9 @@ class AgentLoop:
             if directive:
                 logger.info("Steering directive received: %s", directive.event_type)
                 if directive.event_type == EventType.STEERING_REDIRECT:
-                    # Redirect: inject the directive as a user message and continue
                     redirect_text = directive.payload.get("directive", "")
                     if redirect_text:
                         self._context.add_message(Message(role=Role.USER, content=redirect_text))
-                    # Continue the loop — the model will respond to the new instruction
                 else:
                     break
 
@@ -82,10 +86,19 @@ class AgentLoop:
                 )
             )
 
-            request = self._prompt_builder.build(
-                self._context.get_messages(),
-                self._tool_registry.list_definitions() or None,
-            )
+            # ① before_prompt_build
+            messages = self._context.get_messages()
+            messages = await self._transformer.apply(messages)
+            tool_defs = self._tool_registry.list_definitions() or []
+            prompt_ctx: dict[str, Any] = {"messages": messages, "tool_definitions": tool_defs}
+            prompt_ctx = await self._pipeline.run("before_prompt_build", prompt_ctx)
+            messages = prompt_ctx["messages"]
+            tool_defs = prompt_ctx["tool_definitions"]
+
+            request = self._prompt_builder.build(messages, tool_defs or None)
+
+            # ② before_llm_request
+            request = await self._pipeline.run("before_llm_request", request)
 
             await self._event_bus.publish(
                 LLMEvent(
@@ -96,6 +109,9 @@ class AgentLoop:
             )
 
             response = await self._provider.complete(request, response_model=response_model)
+
+            # ③ after_llm_response
+            response = await self._pipeline.run("after_llm_response", response)
 
             await self._event_bus.publish(
                 LLMEvent(
@@ -113,6 +129,9 @@ class AgentLoop:
                 role=Role.ASSISTANT,
                 content=response.content,
                 tool_calls=response.tool_calls,
+                metadata={"thinking": response.metadata["thinking"]}
+                if "thinking" in response.metadata
+                else {},
             )
             self._context.add_message(assistant_msg)
 
@@ -122,8 +141,35 @@ class AgentLoop:
                 break
 
             # Execute tool calls
+            tool_results: list[dict[str, Any]] = []
             for tc in response.tool_calls or []:
-                result = await self._tool_executor.execute(tc.name, tc.arguments, call_id=tc.id)
+                # ④ before_tool_call
+                tc_ctx: dict[str, Any] = {
+                    "tool_name": tc.name,
+                    "arguments": tc.arguments,
+                    "call_id": tc.id,
+                }
+                try:
+                    tc_ctx = await self._pipeline.run("before_tool_call", tc_ctx)
+                except InterceptBlockedError as exc:
+                    logger.info("Tool '%s' blocked by interceptor: %s", tc.name, exc.reason)
+                    tool_msg = Message(
+                        role=Role.TOOL,
+                        content=json.dumps({"blocked": True, "reason": exc.reason}),
+                        tool_call_id=tc.id,
+                        metadata={"tool_name": tc.name},
+                    )
+                    self._context.add_message(tool_msg)
+                    tool_results.append({"tool_name": tc.name, "blocked": True})
+                    continue
+
+                result = await self._tool_executor.execute(
+                    tc_ctx["tool_name"], tc_ctx["arguments"], call_id=tc_ctx["call_id"]
+                )
+
+                # ⑤ after_tool_call
+                result = await self._pipeline.run("after_tool_call", result)
+
                 tool_content = (
                     json.dumps(result.result) if result.result is not None else result.error
                 )
@@ -134,6 +180,12 @@ class AgentLoop:
                     metadata={"tool_name": tc.name},
                 )
                 self._context.add_message(tool_msg)
+                tool_results.append(
+                    {"tool_name": tc.name, "result": result.result, "error": result.error}
+                )
+
+            # ⑥ after_tool_round
+            tool_results = await self._pipeline.run("after_tool_round", tool_results)
 
             # Inject any pending follow-up messages
             for msg in self._steering.get_pending_messages():
@@ -142,7 +194,12 @@ class AgentLoop:
             # Continue loop to get model's response to tool results
             final_response = response
 
-        return final_response or ModelResponse(content="Max turns reached without completion.")
+        result = final_response or ModelResponse(content="Max turns reached without completion.")
+
+        # ⑦ before_return
+        result = await self._pipeline.run("before_return", result)
+
+        return result
 
     async def run_stream(
         self,
@@ -173,10 +230,19 @@ class AgentLoop:
                 )
             )
 
-            request = self._prompt_builder.build(
-                self._context.get_messages(),
-                self._tool_registry.list_definitions() or None,
-            )
+            # ① before_prompt_build
+            messages = self._context.get_messages()
+            messages = await self._transformer.apply(messages)
+            tool_defs = self._tool_registry.list_definitions() or []
+            prompt_ctx: dict[str, Any] = {"messages": messages, "tool_definitions": tool_defs}
+            prompt_ctx = await self._pipeline.run("before_prompt_build", prompt_ctx)
+            messages = prompt_ctx["messages"]
+            tool_defs = prompt_ctx["tool_definitions"]
+
+            request = self._prompt_builder.build(messages, tool_defs or None)
+
+            # ② before_llm_request
+            request = await self._pipeline.run("before_llm_request", request)
 
             await self._event_bus.publish(
                 LLMEvent(
@@ -188,6 +254,7 @@ class AgentLoop:
 
             # Collect the full response while streaming chunks out
             collected_content: list[str] = []
+            collected_thinking: list[str] = []
             collected_tool_calls: dict[int, dict[str, Any]] = {}
             current_tool_idx = -1
 
@@ -209,6 +276,8 @@ class AgentLoop:
 
                 if chunk.chunk_type == StreamChunkType.TEXT_DELTA and chunk.content:
                     collected_content.append(chunk.content)
+                elif chunk.chunk_type == StreamChunkType.THINKING_DELTA and chunk.thinking:
+                    collected_thinking.append(chunk.thinking)
                 elif chunk.chunk_type == StreamChunkType.TOOL_CALL_START and chunk.tool_call:
                     current_tool_idx += 1
                     collected_tool_calls[current_tool_idx] = {
@@ -231,8 +300,6 @@ class AgentLoop:
             )
 
             # Build tool calls from collected data
-            from kagent.domain.entities import ToolCall
-
             tool_calls = []
             for idx in sorted(collected_tool_calls):
                 tc_data = collected_tool_calls[idx]
@@ -244,11 +311,29 @@ class AgentLoop:
 
             full_content = "".join(collected_content) if collected_content else None
 
+            # Build response for after_llm_response hook
+            stream_metadata: dict[str, Any] = {}
+            if collected_thinking:
+                stream_metadata["thinking"] = "".join(collected_thinking)
+            stream_response = ModelResponse(
+                content=full_content,
+                tool_calls=tool_calls if tool_calls else None,
+                metadata=stream_metadata,
+            )
+
+            # ③ after_llm_response
+            stream_response = await self._pipeline.run("after_llm_response", stream_response)
+            full_content = stream_response.content
+            tool_calls = list(stream_response.tool_calls) if stream_response.tool_calls else []
+
             # Add assistant message to context
             assistant_msg = Message(
                 role=Role.ASSISTANT,
                 content=full_content,
                 tool_calls=tool_calls if tool_calls else None,
+                metadata={"thinking": stream_response.metadata["thinking"]}
+                if "thinking" in stream_response.metadata
+                else {},
             )
             self._context.add_message(assistant_msg)
 
@@ -257,8 +342,35 @@ class AgentLoop:
                 break
 
             # Execute tool calls
+            tool_results: list[dict[str, Any]] = []
             for tc in tool_calls:
-                result = await self._tool_executor.execute(tc.name, tc.arguments, call_id=tc.id)
+                # ④ before_tool_call
+                tc_ctx: dict[str, Any] = {
+                    "tool_name": tc.name,
+                    "arguments": tc.arguments,
+                    "call_id": tc.id,
+                }
+                try:
+                    tc_ctx = await self._pipeline.run("before_tool_call", tc_ctx)
+                except InterceptBlockedError as exc:
+                    logger.info("Tool '%s' blocked by interceptor: %s", tc.name, exc.reason)
+                    tool_msg = Message(
+                        role=Role.TOOL,
+                        content=json.dumps({"blocked": True, "reason": exc.reason}),
+                        tool_call_id=tc.id,
+                        metadata={"tool_name": tc.name},
+                    )
+                    self._context.add_message(tool_msg)
+                    tool_results.append({"tool_name": tc.name, "blocked": True})
+                    continue
+
+                result = await self._tool_executor.execute(
+                    tc_ctx["tool_name"], tc_ctx["arguments"], call_id=tc_ctx["call_id"]
+                )
+
+                # ⑤ after_tool_call
+                result = await self._pipeline.run("after_tool_call", result)
+
                 tool_content = (
                     json.dumps(result.result) if result.result is not None else result.error
                 )
@@ -269,6 +381,12 @@ class AgentLoop:
                     metadata={"tool_name": tc.name},
                 )
                 self._context.add_message(tool_msg)
+                tool_results.append(
+                    {"tool_name": tc.name, "result": result.result, "error": result.error}
+                )
+
+            # ⑥ after_tool_round
+            tool_results = await self._pipeline.run("after_tool_round", tool_results)
 
             for msg in self._steering.get_pending_messages():
                 self._context.add_message(msg)

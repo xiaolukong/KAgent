@@ -67,6 +67,7 @@ class StreamChunk(BaseModel):
 
     chunk_type: StreamChunkType
     content: str | None = None
+    thinking: str | None = None
     tool_call: ToolCallChunk | None = None
     usage: TokenUsage | None = None
     parsed: Any = None

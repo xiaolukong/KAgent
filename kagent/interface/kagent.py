@@ -129,6 +129,78 @@ class KAgent:
 
         return decorator
 
+    # ── Interceptors ──────────────────────────────────────────────────
+
+    def intercept(
+        self,
+        hook: str,
+        func: Callable[..., Any] | None = None,
+        *,
+        priority: int = 0,
+    ) -> Any:
+        """Register an interceptor on a hook point. Can be used as a decorator.
+
+        Usage:
+            @agent.intercept("before_llm_request")
+            async def modify_request(request):
+                ...
+                return request
+
+            agent.intercept("after_tool_call", some_handler, priority=10)
+
+        Valid hooks: before_prompt_build, before_llm_request, after_llm_response,
+                     before_tool_call, after_tool_call, after_tool_round, before_return.
+        """
+        if func is not None:
+            self._agent.intercept(hook, func, priority=priority)
+            return func
+
+        def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+            self._agent.intercept(hook, fn, priority=priority)
+            return fn
+
+        return decorator
+
+    # ── Context transforms ───────────────────────────────────────────
+
+    def transform(
+        self,
+        func: Callable[..., Any] | None = None,
+        *,
+        priority: int = 0,
+    ) -> Any:
+        """Register a context transform function. Can be used as a decorator.
+
+        Transforms convert App-layer messages to LLM-layer messages before
+        each prompt build.  They only affect what is sent to the LLM —
+        ContextManager always retains the full history.
+
+        Usage:
+            @agent.transform
+            async def inject_time(messages):
+                from datetime import datetime
+                from kagent.domain.entities import Message
+                from kagent.domain.enums import Role
+                time_msg = Message(
+                    role=Role.SYSTEM,
+                    content=f"Current time: {datetime.now().isoformat()}",
+                )
+                return [messages[0], time_msg] + messages[1:]
+
+            @agent.transform(priority=10)
+            async def filter_debug(messages):
+                return [m for m in messages if "debug" not in (m.content or "")]
+        """
+        if func is not None:
+            self._agent.add_transform(func, priority=priority)
+            return func
+
+        def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+            self._agent.add_transform(fn, priority=priority)
+            return fn
+
+        return decorator
+
     # ── Running ──────────────────────────────────────────────────────────
 
     async def run(
