@@ -70,6 +70,7 @@ class Agent:
             pipeline=self._pipeline,
             transformer=self._transformer,
             max_turns=config.max_turns,
+            max_tool_retries=config.max_tool_retries,
         )
 
     @property

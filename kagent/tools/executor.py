@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from kagent.common.errors import ToolError
@@ -63,6 +64,24 @@ class ToolExecutor:
         if call_id:
             result.tool_call_id = call_id
         result.duration_ms = timer.elapsed_ms
+
+        # Enrich validation errors with the arguments the LLM provided,
+        # giving it enough context to self-correct.
+        if (
+            result.status == ToolCallStatus.ERROR
+            and result.error
+            and "Validation failed" in result.error
+        ):
+            try:
+                args_str = json.dumps(arguments, default=str)
+            except (TypeError, ValueError):
+                args_str = str(arguments)
+            result.error = (
+                f"Tool '{tool_name}' parameter validation failed.\n"
+                f"{result.error}\n"
+                f"You provided: {args_str}\n"
+                f"Please fix the parameters and try again."
+            )
 
         if result.status == ToolCallStatus.COMPLETED:
             await self._event_bus.publish(

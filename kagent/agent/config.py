@@ -15,3 +15,4 @@ class AgentConfig(BaseModel):
     max_tokens: int | None = None
     tool_choice: str | None = None
     max_context_tokens: int = 128_000
+    max_tool_retries: int = 3

@@ -90,8 +90,6 @@ class ToolWrapper:
                 status=ToolCallStatus.COMPLETED,
                 duration_ms=timer.elapsed_ms,
             )
-        except ValidationError:
-            raise
         except Exception as exc:
             return ToolResult(
                 tool_call_id=call_id,

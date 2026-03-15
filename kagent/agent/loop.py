@@ -15,7 +15,7 @@ from kagent.common.logging import get_logger
 from kagent.context.manager import ContextManager
 from kagent.context.transformer import ContextTransformer
 from kagent.domain.entities import Message, ToolCall
-from kagent.domain.enums import EventType, Role, StreamChunkType
+from kagent.domain.enums import EventType, Role, StreamChunkType, ToolCallStatus
 from kagent.domain.events import AgentEvent, LLMEvent
 from kagent.domain.model_types import ModelResponse, StreamChunk
 from kagent.domain.protocols import IEventBus, IModelProvider
@@ -41,6 +41,7 @@ class AgentLoop:
         pipeline: InterceptorPipeline | None = None,
         transformer: ContextTransformer | None = None,
         max_turns: int = 10,
+        max_tool_retries: int = 3,
     ) -> None:
         self._provider = model_provider
         self._event_bus = event_bus
@@ -52,6 +53,7 @@ class AgentLoop:
         self._pipeline = pipeline or InterceptorPipeline()
         self._transformer = transformer or ContextTransformer()
         self._max_turns = max_turns
+        self._max_tool_retries = max_tool_retries
 
     async def run(
         self,
@@ -63,6 +65,7 @@ class AgentLoop:
         self._context.add_message(Message(role=Role.USER, content=user_input))
 
         final_response: ModelResponse | None = None
+        consecutive_errors: dict[str, int] = {}  # tool_name → consecutive failure count
 
         for turn in range(self._max_turns):
             # Check steering
@@ -170,6 +173,31 @@ class AgentLoop:
                 # ⑤ after_tool_call
                 result = await self._pipeline.run("after_tool_call", result)
 
+                # Circuit breaker: track consecutive errors per tool
+                if result.status == ToolCallStatus.ERROR:
+                    consecutive_errors[tc.name] = consecutive_errors.get(tc.name, 0) + 1
+                    if consecutive_errors[tc.name] >= self._max_tool_retries:
+                        logger.warning(
+                            "Tool '%s' failed %d consecutive times, circuit breaker triggered",
+                            tc.name,
+                            self._max_tool_retries,
+                        )
+                        breaker_msg = Message(
+                            role=Role.TOOL,
+                            content=(
+                                f"Tool '{tc.name}' has failed {self._max_tool_retries} "
+                                f"consecutive times. Stopping retries. "
+                                f"Please use a different approach."
+                            ),
+                            tool_call_id=tc.id,
+                            metadata={"tool_name": tc.name},
+                        )
+                        self._context.add_message(breaker_msg)
+                        tool_results.append({"tool_name": tc.name, "error": breaker_msg.content})
+                        break
+                else:
+                    consecutive_errors[tc.name] = 0
+
                 tool_content = (
                     json.dumps(result.result) if result.result is not None else result.error
                 )
@@ -209,6 +237,7 @@ class AgentLoop:
     ) -> AsyncIterator[StreamChunk]:
         """Execute the agent loop with streaming output."""
         self._context.add_message(Message(role=Role.USER, content=user_input))
+        consecutive_errors: dict[str, int] = {}  # tool_name → consecutive failure count
 
         for turn in range(self._max_turns):
             if self._steering.is_aborted:
@@ -370,6 +399,31 @@ class AgentLoop:
 
                 # ⑤ after_tool_call
                 result = await self._pipeline.run("after_tool_call", result)
+
+                # Circuit breaker: track consecutive errors per tool
+                if result.status == ToolCallStatus.ERROR:
+                    consecutive_errors[tc.name] = consecutive_errors.get(tc.name, 0) + 1
+                    if consecutive_errors[tc.name] >= self._max_tool_retries:
+                        logger.warning(
+                            "Tool '%s' failed %d consecutive times, circuit breaker triggered",
+                            tc.name,
+                            self._max_tool_retries,
+                        )
+                        breaker_msg = Message(
+                            role=Role.TOOL,
+                            content=(
+                                f"Tool '{tc.name}' has failed {self._max_tool_retries} "
+                                f"consecutive times. Stopping retries. "
+                                f"Please use a different approach."
+                            ),
+                            tool_call_id=tc.id,
+                            metadata={"tool_name": tc.name},
+                        )
+                        self._context.add_message(breaker_msg)
+                        tool_results.append({"tool_name": tc.name, "error": breaker_msg.content})
+                        break
+                else:
+                    consecutive_errors[tc.name] = 0
 
                 tool_content = (
                     json.dumps(result.result) if result.result is not None else result.error
