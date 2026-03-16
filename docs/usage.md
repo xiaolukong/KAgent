@@ -23,27 +23,44 @@ KAgent 是一个基于 Clean Architecture 的 Python Agent 框架，支持多模
 
 ## 1. 安装与配置
 
-### 全局配置
+### 环境变量（推荐）
 
-使用 `configure()` 设置全局 API 凭证。所有 Provider 在未单独配置时会自动回退到全局配置。
+将 `.env.example` 复制为 `.env`，填入你的 API Key：
+
+```bash
+cp .env.example .env
+# 编辑 .env 文件：
+# KAGENT_API_KEY=your-api-key
+# KAGENT_BASE_URL=https://your-proxy.example.com/v1  (可选)
+```
+
+然后在代码中调用 `configure()` 即可自动加载 `.env` 文件：
 
 ```python
 from kagent import configure
 
+configure()  # 自动从 .env / 环境变量读取 KAGENT_API_KEY 和 KAGENT_BASE_URL
+```
+
+### 显式配置
+
+也可以直接传参（会覆盖 .env / 环境变量）：
+
+```python
 configure(
     api_key="your-api-key",
     base_url="https://your-proxy.example.com/v1",  # 可选，用于 OpenAI 兼容代理
 )
 ```
 
-也可以通过环境变量配置：
+也可以通过环境变量配置（不使用 .env 文件）：
 
 ```bash
 export KAGENT_API_KEY=your-api-key
 export KAGENT_BASE_URL=https://your-proxy.example.com/v1
 ```
 
-优先级：`configure()` 显式调用 > 环境变量。
+优先级：`configure()` 显式参数 > 环境变量 > `.env` 文件。
 
 ### 模型标识格式
 

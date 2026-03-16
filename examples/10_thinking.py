@@ -11,7 +11,8 @@ Models that produce thinking content:
 - DeepSeek: DeepSeek-R1 (reasoning_content via OpenAI-compatible API)
 
 Usage:
-    export KAGENT_API_KEY=sk-xxx
+    # 1. Copy .env.example to .env and fill in your API key
+    # 2. Run:
     python examples/10_thinking.py
 """
 
@@ -66,10 +67,7 @@ async def non_streaming_thinking() -> None:
 
 
 async def main():
-    configure(
-        api_key="test-key-1",
-        base_url="https://sap-ai-proxy-delightful-oribi-lx.cfapps.eu12.hana.ondemand.com/v1",
-    )
+    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
 
     try:
         await streaming_thinking()

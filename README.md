@@ -19,13 +19,14 @@ A clean-architecture async Python agent framework with event-driven and intercep
 
 ```bash
 pip install -e .
+cp .env.example .env   # then fill in your API key
 ```
 
 ```python
 import asyncio
 from kagent import KAgent, configure
 
-configure(api_key="sk-...")
+configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
 agent = KAgent(model="openai:gpt-4o", system_prompt="You are helpful.")
 
 @agent.tool

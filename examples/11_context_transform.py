@@ -7,7 +7,8 @@ This example demonstrates:
 - How transforms only affect LLM input — ContextManager retains full history
 
 Usage:
-    export KAGENT_API_KEY=sk-xxx
+    # 1. Copy .env.example to .env and fill in your API key
+    # 2. Run:
     python examples/11_context_transform.py
 """
 
@@ -20,10 +21,7 @@ from kagent.domain.enums import Role
 
 
 async def main():
-    configure(
-        api_key="test-key-1",
-        base_url="https://sap-ai-proxy-delightful-oribi-lx.cfapps.eu12.hana.ondemand.com/v1",
-    )
+    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
 
     agent = KAgent(
         model="openai:gpt-5",

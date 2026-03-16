@@ -7,7 +7,8 @@ This example demonstrates:
 - Running the same tool-equipped agent across multiple providers
 
 Usage:
-    export KAGENT_API_KEY=sk-xxx
+    # 1. Copy .env.example to .env and fill in your API key
+    # 2. Run:
     python examples/02_tool_usage.py
 """
 
@@ -59,10 +60,7 @@ async def run_with_model(model: str) -> None:
 
 
 async def main():
-    configure(
-        api_key="test-key-1",
-        base_url="https://sap-ai-proxy-delightful-oribi-lx.cfapps.eu12.hana.ondemand.com/v1",
-    )
+    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
 
     print("=== Tool Usage — Multi-Model ===")
     for model in MODELS:

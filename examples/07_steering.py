@@ -16,7 +16,8 @@ intervene.
   turn boundary.
 
 Usage:
-    export KAGENT_API_KEY=sk-xxx
+    # 1. Copy .env.example to .env and fill in your API key
+    # 2. Run:
     python examples/07_steering.py
 """
 
@@ -218,10 +219,7 @@ async def demo_abort_streaming() -> None:
 
 
 async def main():
-    configure(
-        api_key="test-key-1",
-        base_url="https://sap-ai-proxy-delightful-oribi-lx.cfapps.eu12.hana.ondemand.com/v1",
-    )
+    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
 
     print("=== Steering Example ===")
     await demo_steer()

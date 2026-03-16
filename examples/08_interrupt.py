@@ -12,7 +12,8 @@ Key pattern:
     until resume() is called.  The return value is the user's reply string.
 
 Usage:
-    export KAGENT_API_KEY=sk-xxx
+    # 1. Copy .env.example to .env and fill in your API key
+    # 2. Run:
     python examples/08_interrupt.py
 """
 
@@ -145,10 +146,7 @@ async def demo_delete_files() -> None:
 
 
 async def main():
-    configure(
-        api_key="test-key-1",
-        base_url="https://sap-ai-proxy-delightful-oribi-lx.cfapps.eu12.hana.ondemand.com/v1",
-    )
+    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
 
     print("=== Interrupt Example ===")
     print("(Tools will pause and ask for your input when needed.)\n")

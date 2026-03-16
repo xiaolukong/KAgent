@@ -6,7 +6,8 @@ This example demonstrates the simplest usage of KAgent:
 - Run a non-streaming query across OpenAI, Anthropic, and Gemini
 
 Usage:
-    export KAGENT_API_KEY=sk-xxx
+    # 1. Copy .env.example to .env and fill in your API key
+    # 2. Run:
     python examples/01_basic_chat.py
 """
 
@@ -38,10 +39,7 @@ async def run_with_model(model: str) -> None:
 
 
 async def main():
-    configure(
-        api_key="test-key-1",
-        base_url="https://sap-ai-proxy-delightful-oribi-lx.cfapps.eu12.hana.ondemand.com/v1",
-    )
+    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
 
     print("=== Basic Chat — Multi-Model ===")
     for model in MODELS:

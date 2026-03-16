@@ -27,7 +27,10 @@ from kagent import (
 ### Initialize
 
 ```python
-configure(api_key="sk-...")  # global config (optional if env var set)
+# Credentials are loaded automatically from .env file:
+#   KAGENT_API_KEY=sk-...
+#   KAGENT_BASE_URL=https://...   (optional, for proxies)
+configure()  # reads from .env / env vars
 agent = KAgent(model="openai:gpt-4o", system_prompt="You are helpful.")
 # Models: "openai:<model>", "anthropic:<model>", "gemini:<model>"
 ```
