@@ -1,0 +1,152 @@
+{
+  "version": "1.0",
+  "framework": "KAgent",
+  "description": "Intent-to-code mapping for AI coding agents. When unsure which file to read, search this manifest by intent or keyword.",
+  "intents": [
+    {
+      "id": "basic-chat",
+      "intent_en": "Basic conversation with an LLM",
+      "intent_zh": "基础对话 / 简单问答 / Hello World",
+      "keywords": ["chat", "conversation", "basic", "hello world", "simple", "对话", "问答", "入门"],
+      "reference_files": ["examples/01_basic_chat.py"],
+      "api_surface": ["KAgent", "configure", "agent.run()"]
+    },
+    {
+      "id": "tool-usage",
+      "intent_en": "Register and use tools / function calling",
+      "intent_zh": "工具注册 / 函数调用 / Tool Use",
+      "keywords": ["tool", "function", "calling", "register", "decorator", "工具", "函数调用", "注册"],
+      "reference_files": ["examples/02_tool_usage.py"],
+      "api_surface": ["@agent.tool", "agent.run()"]
+    },
+    {
+      "id": "streaming",
+      "intent_en": "Stream response tokens in real-time",
+      "intent_zh": "流式输出 / 逐 token 输出 / 实时响应",
+      "keywords": ["stream", "streaming", "real-time", "token", "流式", "实时", "逐字"],
+      "reference_files": ["examples/03_streaming.py"],
+      "api_surface": ["agent.stream()", "StreamChunk", "StreamChunkType"]
+    },
+    {
+      "id": "structured-output",
+      "intent_en": "Get structured/typed output using Pydantic models",
+      "intent_zh": "结构化输出 / JSON 输出 / Pydantic 解析",
+      "keywords": ["structured", "output", "pydantic", "json", "schema", "typed", "parse", "结构化", "JSON"],
+      "reference_files": ["examples/04_structured_output.py"],
+      "api_surface": ["agent.run(response_model=MyModel)", "ModelResponse.parsed"]
+    },
+    {
+      "id": "event-hooks",
+      "intent_en": "Subscribe to agent lifecycle events for observability",
+      "intent_zh": "事件钩子 / 生命周期监听 / 可观测性",
+      "keywords": ["event", "hook", "subscribe", "observe", "lifecycle", "monitor", "log", "事件", "钩子", "监听", "日志"],
+      "reference_files": ["examples/05_event_hooks.py"],
+      "api_surface": ["@agent.on(pattern)", "EventType"]
+    },
+    {
+      "id": "custom-state",
+      "intent_en": "Manage custom state, snapshot/restore context",
+      "intent_zh": "自定义状态 / 上下文快照 / 会话持久化",
+      "keywords": ["state", "snapshot", "restore", "context", "persistence", "session", "memory", "状态", "快照", "恢复", "持久化"],
+      "reference_files": ["examples/06_custom_state.py"],
+      "api_surface": ["ContextManager", "StateManager", "snapshot()", "restore()"]
+    },
+    {
+      "id": "steering",
+      "intent_en": "Redirect or abort a running agent mid-turn",
+      "intent_zh": "运行时转向 / 中途重定向 / 中止运行",
+      "keywords": ["steer", "redirect", "abort", "cancel", "stop", "mid-turn", "转向", "重定向", "中止", "取消"],
+      "reference_files": ["examples/07_steering.py"],
+      "api_surface": ["agent.steer()", "agent.abort()"]
+    },
+    {
+      "id": "interrupt",
+      "intent_en": "Human-in-the-loop confirmation inside tools",
+      "intent_zh": "人工审批 / 中断确认 / 人机交互",
+      "keywords": ["interrupt", "human", "loop", "confirm", "approve", "pause", "resume", "审批", "确认", "中断", "人工"],
+      "reference_files": ["examples/08_interrupt.py"],
+      "api_surface": ["agent.interrupt()", "agent.resume()"]
+    },
+    {
+      "id": "interceptors",
+      "intent_en": "Modify data flowing through the agent loop with interceptors",
+      "intent_zh": "拦截器 / 请求修改 / 管道过滤",
+      "keywords": ["intercept", "interceptor", "pipeline", "filter", "modify", "block", "middleware", "拦截器", "过滤", "管道", "中间件"],
+      "reference_files": ["examples/09_interceptors.py"],
+      "api_surface": ["@agent.intercept(hook)", "InterceptResult.block()"]
+    },
+    {
+      "id": "thinking",
+      "intent_en": "Stream thinking/reasoning tokens from reasoning models",
+      "intent_zh": "思考过程 / 推理输出 / Thinking 流式",
+      "keywords": ["thinking", "reasoning", "chain-of-thought", "extended", "o1", "o3", "deepseek", "r1", "思考", "推理", "思维链"],
+      "reference_files": ["examples/10_thinking.py"],
+      "api_surface": ["agent.stream()", "StreamChunkType.THINKING_DELTA", "StreamChunk.thinking"]
+    },
+    {
+      "id": "context-transform",
+      "intent_en": "Transform/filter messages before sending to LLM",
+      "intent_zh": "上下文转换 / 消息过滤 / 注入系统消息",
+      "keywords": ["transform", "filter", "context", "inject", "hide", "message", "转换", "过滤", "注入", "隐藏"],
+      "reference_files": ["examples/11_context_transform.py"],
+      "api_surface": ["@agent.transform", "@agent.transform(priority=N)"]
+    },
+    {
+      "id": "self-correction",
+      "intent_en": "Tool self-correction and circuit breaker for robustness",
+      "intent_zh": "工具自纠正 / 熔断器 / 错误恢复",
+      "keywords": ["self-correct", "circuit", "breaker", "retry", "validation", "error", "recover", "自纠正", "熔断", "重试", "容错"],
+      "reference_files": ["examples/12_self_correction.py"],
+      "api_surface": ["KAgent(max_tool_retries=N)"]
+    }
+  ],
+  "composite_intents": [
+    {
+      "id": "code-review-agent",
+      "intent_en": "Build a code review agent with hidden internal state and streamed thinking",
+      "intent_zh": "构建代码审查 Agent，隐藏内部状态，流式输出思考过程",
+      "keywords": ["code review", "hidden state", "thinking stream", "代码审查"],
+      "reference_files": [
+        "examples/11_context_transform.py",
+        "examples/10_thinking.py",
+        "examples/09_interceptors.py"
+      ],
+      "api_surface": ["@agent.transform", "agent.stream()", "StreamChunkType.THINKING_DELTA"]
+    },
+    {
+      "id": "safe-tool-agent",
+      "intent_en": "Agent with tool approval, error recovery, and audit logging",
+      "intent_zh": "安全工具 Agent：审批 + 容错 + 审计日志",
+      "keywords": ["safe", "approval", "audit", "logging", "robust", "安全", "审计"],
+      "reference_files": [
+        "examples/08_interrupt.py",
+        "examples/12_self_correction.py",
+        "examples/05_event_hooks.py"
+      ],
+      "api_surface": ["agent.interrupt()", "@agent.on()", "max_tool_retries"]
+    },
+    {
+      "id": "dynamic-context-agent",
+      "intent_en": "Agent with dynamic context injection, request tracing, and structured output",
+      "intent_zh": "动态上下文 Agent：注入实时信息 + 请求追踪 + 结构化输出",
+      "keywords": ["dynamic context", "tracing", "structured", "动态上下文", "追踪"],
+      "reference_files": [
+        "examples/11_context_transform.py",
+        "examples/09_interceptors.py",
+        "examples/04_structured_output.py"
+      ],
+      "api_surface": ["@agent.transform", "@agent.intercept()", "response_model"]
+    },
+    {
+      "id": "controllable-agent",
+      "intent_en": "Agent that can be redirected, paused for approval, and gracefully stopped",
+      "intent_zh": "可控 Agent：重定向 + 暂停审批 + 优雅停止",
+      "keywords": ["controllable", "redirect", "pause", "stop", "可控", "暂停"],
+      "reference_files": [
+        "examples/07_steering.py",
+        "examples/08_interrupt.py"
+      ],
+      "api_surface": ["agent.steer()", "agent.abort()", "agent.interrupt()", "agent.resume()"]
+    }
+  ]
+}

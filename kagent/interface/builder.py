@@ -14,7 +14,7 @@ class KAgentBuilder:
     def __init__(self) -> None:
         self._model: str = "openai:gpt-4o"
         self._system_prompt: str = "You are a helpful assistant."
-        self._max_turns: int = 10
+        self._max_turns: int = 1
         self._temperature: float | None = None
         self._max_tokens: int | None = None
         self._tool_choice: str | None = None

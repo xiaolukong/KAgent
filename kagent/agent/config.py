@@ -10,7 +10,7 @@ class AgentConfig(BaseModel):
 
     model: str = "openai:gpt-4o"
     system_prompt: str = "You are a helpful assistant."
-    max_turns: int = 10
+    max_turns: int = 1
     temperature: float | None = None
     max_tokens: int | None = None
     tool_choice: str | None = None

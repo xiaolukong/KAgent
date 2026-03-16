@@ -40,7 +40,7 @@ class AgentLoop:
         steering: SteeringController,
         pipeline: InterceptorPipeline | None = None,
         transformer: ContextTransformer | None = None,
-        max_turns: int = 10,
+        max_turns: int = 1,
         max_tool_retries: int = 3,
     ) -> None:
         self._provider = model_provider
