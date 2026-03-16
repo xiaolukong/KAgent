@@ -29,6 +29,11 @@ dev = [
 [tool.hatch.version]
 path = "kagent/_version.py"
 
+[tool.hatch.build.force-include]
+"CLAUDE.md" = "kagent/_ai/CLAUDE.md"
+"docs/AI_MANIFEST.json" = "kagent/_ai/AI_MANIFEST.json"
+"examples" = "kagent/_ai/examples"
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100

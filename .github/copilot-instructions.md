@@ -139,5 +139,21 @@ reply = await agent.interrupt("Approve transfer of $5000?")
 
 ## Intent Index
 
-When unsure which file to look at, consult `docs/AI_MANIFEST.json` —
-it maps natural-language intents (en + zh) to example files and API surfaces.
+When unsure which file to look at, consult `docs/AI_MANIFEST.json` (in-repo)
+or `kagent/_ai/AI_MANIFEST.json` (installed) — it maps natural-language
+intents (en + zh) to example files and API surfaces.
+
+## Installed Package Usage
+
+When working in a project where kagent is pip-installed (not in the KAgent
+repo itself), these guidelines and examples are bundled inside the package:
+
+```python
+import kagent
+guide_dir = kagent.get_ai_guide_path()
+# guide_dir / "CLAUDE.md"         — this file
+# guide_dir / "AI_MANIFEST.json"  — intent-to-code mapping
+# guide_dir / "examples/"         — 12 runnable example scripts
+```
+
+Or directly at `site-packages/kagent/_ai/CLAUDE.md`.
