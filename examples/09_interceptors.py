@@ -1,4 +1,4 @@
-"""Example 09: Interceptors — mutable hooks for the agent loop.
+"""Example 09: Interceptors — mutable hooks for the agent loop via SAP AI Core.
 
 This example demonstrates:
 - Using @agent.intercept() to modify data flowing through the agent loop
@@ -10,8 +10,10 @@ This example demonstrates:
 Unlike @agent.on() (read-only Pub/Sub), interceptors receive data,
 can modify it, and return it to the next handler in the chain.
 
+Credentials are read automatically from AICORE_* environment variables.
+
 Usage:
-    # 1. Copy .env.example to .env and fill in your API key
+    # 1. Copy .env.example to .env and fill in your AICORE_* credentials
     # 2. Run:
     python examples/09_interceptors.py
 """
@@ -23,15 +25,11 @@ from kagent.agent.interceptor import InterceptResult
 
 
 async def demo_tool_filter() -> None:
-    """Demo 1: Dynamically filter tools based on a "safe mode" flag.
-
-    The before_prompt_build interceptor removes all tools except
-    whitelisted ones when safe mode is active.
-    """
+    """Demo 1: Dynamically filter tools based on a "safe mode" flag."""
     print("--- Demo 1: Dynamic tool filtering ---\n")
 
     agent = KAgent(
-        model="openai:gpt-5",
+        model="openai:gpt-4o",
         system_prompt="You are a helpful assistant with access to tools.",
         max_turns=5,
     )
@@ -63,15 +61,11 @@ async def demo_tool_filter() -> None:
 
 
 async def demo_request_logging() -> None:
-    """Demo 2: Log and modify LLM requests.
-
-    The before_llm_request interceptor logs every request and forces
-    temperature to 0 for deterministic output.
-    """
+    """Demo 2: Log and modify LLM requests."""
     print("\n--- Demo 2: Request logging & modification ---\n")
 
     agent = KAgent(
-        model="openai:gpt-5",
+        model="openai:gpt-4o",
         system_prompt="You are helpful.",
         temperature=0.7,
         max_turns=3,
@@ -95,15 +89,11 @@ async def demo_request_logging() -> None:
 
 
 async def demo_tool_blocking() -> None:
-    """Demo 3: Block dangerous tool calls.
-
-    The before_tool_call interceptor prevents execution of tools that
-    match a blocklist. The blocked tool returns an error to the model.
-    """
+    """Demo 3: Block dangerous tool calls."""
     print("\n--- Demo 3: Tool call blocking ---\n")
 
     agent = KAgent(
-        model="openai:gpt-5",
+        model="openai:gpt-4o",
         system_prompt=(
             "You are a file assistant. Use the tools to help the user. "
             "If a tool is blocked, explain that to the user."
@@ -142,15 +132,11 @@ async def demo_tool_blocking() -> None:
 
 
 async def demo_response_postprocessing() -> None:
-    """Demo 4: Post-process the final response.
-
-    The before_return interceptor adds metadata to the final response
-    and the after_tool_call interceptor redacts sensitive data.
-    """
+    """Demo 4: Post-process the final response."""
     print("\n--- Demo 4: Response post-processing ---\n")
 
     agent = KAgent(
-        model="openai:gpt-5",
+        model="openai:gpt-4o",
         system_prompt="You are a database assistant. Use tools to query data.",
         max_turns=5,
     )
@@ -182,7 +168,7 @@ async def demo_response_postprocessing() -> None:
 
 
 async def main():
-    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
+    configure()  # backend="aicore" by default; reads AICORE_* from .env
 
     print("=== Interceptor Examples ===\n")
     await demo_tool_filter()

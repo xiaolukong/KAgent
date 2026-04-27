@@ -1,4 +1,4 @@
-"""Example 05: Event hooks for observability.
+"""Example 05: Event hooks for observability via SAP AI Core.
 
 This example demonstrates:
 - Subscribing to agent lifecycle events
@@ -7,8 +7,10 @@ This example demonstrates:
 - Using glob patterns to match multiple event types
 - Running event hooks across multiple model providers
 
+Credentials are read automatically from AICORE_* environment variables.
+
 Usage:
-    # 1. Copy .env.example to .env and fill in your API key
+    # 1. Copy .env.example to .env and fill in your AICORE_* credentials
     # 2. Run:
     python examples/05_event_hooks.py
 """
@@ -20,8 +22,8 @@ from kagent import KAgent, configure
 from kagent.domain.events import Event
 
 MODELS = [
-    "openai:gpt-5",
-    "anthropic:claude-opus-4-5-20251101",
+    "openai:gpt-4o",
+    "anthropic:anthropic--claude-4.5-sonnet",
     "gemini:gemini-2.5-pro",
 ]
 
@@ -76,7 +78,7 @@ async def run_with_model(model: str) -> None:
 
 
 async def main():
-    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
+    configure()  # backend="aicore" by default; reads AICORE_* from .env
 
     print("=== Event Hooks — Multi-Model ===")
     for model in MODELS:

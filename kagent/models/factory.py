@@ -17,6 +17,11 @@ def create_provider(
 ) -> BaseModelProvider:
     """Create a model provider from a string like 'openai:gpt-4o'.
 
+    When ``configure(backend="aicore")`` is active (the default), all model
+    strings are routed to :class:`AICoreProvider` regardless of the provider
+    prefix.  Set ``configure(backend="aiproxy")`` to use the direct provider
+    implementations (OpenAI, Anthropic, Gemini).
+
     The provider-specific SDK must be installed. Extra kwargs are
     passed through to ModelConfig.
     """
@@ -35,6 +40,15 @@ def create_provider(
         **kwargs,  # type: ignore[arg-type]
     )
 
+    # ── AI Core backend routing ────────────────────────────────────────────
+    from kagent.common.config import get_config
+
+    if get_config().backend == ModelProviderType.AICORE:
+        from kagent.models.aicore_provider import AICoreProvider
+
+        return AICoreProvider(config)
+
+    # ── Direct provider routing (backend="aiproxy") ────────────────────────
     if provider_name == ModelProviderType.OPENAI:
         from kagent.models.openai_provider import OpenAIProvider
 

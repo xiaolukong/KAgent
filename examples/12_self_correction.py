@@ -1,12 +1,14 @@
-"""Example 12: Tool Self-Correction & Circuit Breaker.
+"""Example 12: Tool Self-Correction & Circuit Breaker via SAP AI Core.
 
 This example demonstrates:
 - LLM passing wrong parameter types → framework returns friendly error → LLM self-corrects
 - Circuit breaker: after 3 consecutive failures on the same tool, the framework stops retries
 - Configuring max_tool_retries
 
+Credentials are read automatically from AICORE_* environment variables.
+
 Usage:
-    # 1. Copy .env.example to .env and fill in your API key
+    # 1. Copy .env.example to .env and fill in your AICORE_* credentials
     # 2. Run:
     python examples/12_self_correction.py
 """
@@ -17,14 +19,14 @@ from kagent import KAgent, configure
 
 
 async def main():
-    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
+    configure()  # backend="aicore" by default; reads AICORE_* from .env
 
     # ── Self-Correction Demo ────────────────────────────────────────────
 
     print("=== Tool Self-Correction Demo ===\n")
 
     agent = KAgent(
-        model="openai:gpt-5",
+        model="openai:gpt-4o",
         system_prompt=(
             "You are a helpful assistant. You have access to a lookup_user tool. "
             "When asked about a user, call the tool with their numeric ID."
@@ -60,7 +62,7 @@ async def main():
     print("=== Circuit Breaker Demo ===\n")
 
     agent2 = KAgent(
-        model="openai:gpt-5",
+        model="openai:gpt-4o",
         system_prompt="You are a helpful assistant.",
         max_turns=10,
         max_tool_retries=2,  # Lower threshold for demo

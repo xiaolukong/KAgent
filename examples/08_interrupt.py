@@ -1,4 +1,4 @@
-"""Example 08: Interrupt — human-in-the-loop confirmation from inside tools.
+"""Example 08: Interrupt — human-in-the-loop confirmation from inside tools via SAP AI Core.
 
 This example demonstrates:
 - Using await agent.interrupt(prompt) inside a tool to pause and ask the user
@@ -11,8 +11,10 @@ Key pattern:
     event (which your event hook handles to collect user input), then blocks
     until resume() is called.  The return value is the user's reply string.
 
+Credentials are read automatically from AICORE_* environment variables.
+
 Usage:
-    # 1. Copy .env.example to .env and fill in your API key
+    # 1. Copy .env.example to .env and fill in your AICORE_* credentials
     # 2. Run:
     python examples/08_interrupt.py
 """
@@ -34,16 +36,11 @@ async def async_input(prompt: str = "") -> str:
 
 
 async def demo_transfer() -> None:
-    """Demo 1: Large transfer requires human confirmation.
-
-    The agent is asked to transfer money.  The transfer_money tool checks
-    the amount — if it exceeds the threshold, it calls agent.interrupt()
-    to ask the user for confirmation before proceeding.
-    """
+    """Demo 1: Large transfer requires human confirmation."""
     print("\n--- Demo 1: Transfer confirmation ---\n")
 
     agent = KAgent(
-        model="openai:gpt-5",
+        model="openai:gpt-4o",
         system_prompt=(
             "You are a banking assistant. "
             "When the user asks you to transfer money, call the transfer_money tool. "
@@ -64,7 +61,6 @@ async def demo_transfer() -> None:
                 return f"Transfer of {amount} to {account} was cancelled by user."
         return f"Successfully transferred {amount} to {account}."
 
-    # Event hook: when an interrupt fires, prompt the user in the terminal
     @agent.on("steering.interrupt")
     async def on_interrupt(event: Event):
         prompt = event.payload.get("prompt", "")
@@ -75,27 +71,21 @@ async def demo_transfer() -> None:
         print()
         await agent.resume(user_reply.strip())
 
-    # Small transfer — no interrupt
     print("  Request: Transfer 500 to Alice")
     result = await agent.run("Transfer 500 to Alice's account.")
     print(f"  Result: {result.content}\n")
 
-    # Large transfer — triggers interrupt
     print("  Request: Transfer 5000 to Bob")
     result = await agent.run("Transfer 5000 to Bob's account.")
     print(f"  Result: {result.content}")
 
 
 async def demo_delete_files() -> None:
-    """Demo 2: Destructive operation requires confirmation.
-
-    The agent lists files, then the delete tool asks for user confirmation
-    before actually deleting anything.
-    """
+    """Demo 2: Destructive operation requires confirmation."""
     print("\n\n--- Demo 2: Destructive action confirmation ---\n")
 
     agent = KAgent(
-        model="openai:gpt-5",
+        model="openai:gpt-4o",
         system_prompt=(
             "You are a file management assistant. "
             "When asked to delete files, call delete_files with the list of filenames. "
@@ -146,7 +136,7 @@ async def demo_delete_files() -> None:
 
 
 async def main():
-    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
+    configure()  # backend="aicore" by default; reads AICORE_* from .env
 
     print("=== Interrupt Example ===")
     print("(Tools will pause and ask for your input when needed.)\n")

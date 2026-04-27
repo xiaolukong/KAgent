@@ -1,4 +1,4 @@
-"""Example 04: Structured output with response_model.
+"""Example 04: Structured output with response_model via SAP AI Core.
 
 This example demonstrates:
 - Using a Pydantic model as response_model for structured output
@@ -6,8 +6,10 @@ This example demonstrates:
 - Parsing the LLM response into a typed Pydantic instance
 - Structured output across multiple model providers
 
+Credentials are read automatically from AICORE_* environment variables.
+
 Usage:
-    # 1. Copy .env.example to .env and fill in your API key
+    # 1. Copy .env.example to .env and fill in your AICORE_* credentials
     # 2. Run:
     python examples/04_structured_output.py
 """
@@ -19,8 +21,8 @@ from pydantic import BaseModel, Field
 from kagent import KAgent, configure
 
 MODELS = [
-    "openai:gpt-5",
-    "anthropic:claude-opus-4-5-20251101",
+    "openai:gpt-4o",
+    "anthropic:anthropic--claude-4.5-sonnet",
     "gemini:gemini-2.5-pro",
 ]
 
@@ -66,7 +68,7 @@ async def run_with_model(model: str) -> None:
 
 
 async def main():
-    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
+    configure()  # backend="aicore" by default; reads AICORE_* from .env
 
     print("=== Structured Output — Multi-Model ===")
     for model in MODELS:

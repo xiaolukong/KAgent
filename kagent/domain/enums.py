@@ -51,6 +51,7 @@ class ModelProviderType(StrEnum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     GEMINI = "gemini"
+    AICORE = "aicore"
 
 
 class ToolCallStatus(StrEnum):

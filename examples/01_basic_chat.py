@@ -1,12 +1,19 @@
-"""Example 01: Basic chat with KAgent.
+"""Example 01: Basic chat with KAgent via SAP AI Core.
 
 This example demonstrates the simplest usage of KAgent:
-- Configure global API credentials
-- Create an agent with different model providers
+- Configure the AI Core backend (default)
+- Create an agent with different model providers available on AI Core
 - Run a non-streaming query across OpenAI, Anthropic, and Gemini
 
+The model string ("openai:gpt-4o" etc.) stays exactly the same as when using
+AI Proxy — only configure() selects the backend.
+
+Credentials are read automatically from AICORE_* environment variables:
+    AICORE_AUTH_URL, AICORE_CLIENT_ID, AICORE_CLIENT_SECRET,
+    AICORE_BASE_URL, AICORE_RESOURCE_GROUP
+
 Usage:
-    # 1. Copy .env.example to .env and fill in your API key
+    # 1. Copy .env.example to .env and fill in your AICORE_* credentials
     # 2. Run:
     python examples/01_basic_chat.py
 """
@@ -16,8 +23,8 @@ import asyncio
 from kagent import KAgent, configure
 
 MODELS = [
-    "openai:gpt-5",
-    "anthropic:claude-opus-4-5-20251101",
+    "openai:gpt-4o",
+    "anthropic:anthropic--claude-4.5-sonnet",
     "gemini:gemini-2.5-pro",
 ]
 
@@ -39,7 +46,7 @@ async def run_with_model(model: str) -> None:
 
 
 async def main():
-    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
+    configure()  # backend="aicore" by default; reads AICORE_* from .env
 
     print("=== Basic Chat — Multi-Model ===")
     for model in MODELS:

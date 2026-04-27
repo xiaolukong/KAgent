@@ -18,7 +18,8 @@ dependencies = [
 openai = ["openai>=1.0"]
 anthropic = ["anthropic>=0.30"]
 gemini = ["google-generativeai>=0.5"]
-all = ["kagent[openai,anthropic,gemini]"]
+aicore = ["generative-ai-hub-sdk>=2.0.0"]
+all = ["kagent[openai,anthropic,gemini,aicore]"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",

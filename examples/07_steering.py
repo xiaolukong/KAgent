@@ -1,4 +1,4 @@
-"""Example 07: Steering — mid-turn redirect and abort.
+"""Example 07: Steering — mid-turn redirect and abort via SAP AI Core.
 
 This example demonstrates:
 - Using agent.steer() to redirect a running agent to a new instruction
@@ -15,8 +15,10 @@ intervene.
 - abort(reason): sets the abort flag and the agent STOPS at the next
   turn boundary.
 
+Credentials are read automatically from AICORE_* environment variables.
+
 Usage:
-    # 1. Copy .env.example to .env and fill in your API key
+    # 1. Copy .env.example to .env and fill in your AICORE_* credentials
     # 2. Run:
     python examples/07_steering.py
 """
@@ -38,7 +40,7 @@ async def demo_steer() -> None:
     print("\n--- Demo 1: Redirect with steer() ---\n")
 
     agent = KAgent(
-        model="openai:gpt-5",
+        model="openai:gpt-4o",
         system_prompt=(
             "You are a research assistant. "
             "Always call the research tool for each topic. "
@@ -67,7 +69,6 @@ async def demo_steer() -> None:
         turn = event.payload.get("turn_number", "?")
         print(f"  [loop] turn {turn}")
 
-    # After the first tool call, redirect to a completely different topic
     async def redirect_after_first_tool():
         while len(topics_researched) < 1:
             await asyncio.sleep(0.1)
@@ -101,7 +102,7 @@ async def demo_abort() -> None:
     print("\n\n--- Demo 2: Abort mid-run ---\n")
 
     agent = KAgent(
-        model="openai:gpt-5",
+        model="openai:gpt-4o",
         system_prompt=(
             "You are a research assistant. "
             "Always call the research tool for EACH topic separately, one at a time."
@@ -117,11 +118,9 @@ async def demo_abort() -> None:
         nonlocal call_count
         call_count += 1
         print(f"  [tool] research('{topic}') — call #{call_count}")
-        # Simulate a slow API call
         await asyncio.sleep(0.5)
         return f"Findings about {topic}: it is very interesting."
 
-    # Track steering events
     @agent.on("steering.*")
     async def on_steering(event: Event):
         print(f"  [steering event] {event.event_type.value}: {event.payload}")
@@ -135,21 +134,17 @@ async def demo_abort() -> None:
     async def on_done(event: Event):
         print("  [loop] completed")
 
-    # Run agent in background; abort after the first tool call finishes
     async def abort_after_first_tool():
-        # Wait until at least one tool call has completed
         while call_count < 1:
             await asyncio.sleep(0.1)
         print("  >>> Sending abort signal!")
         await agent.abort("User decided to stop early")
 
-    # Launch both concurrently
     agent_task = asyncio.create_task(
         agent.run("Research these three topics: quantum computing, black holes, and DNA.")
     )
     abort_task = asyncio.create_task(abort_after_first_tool())
 
-    # Wait for both
     result, _ = await asyncio.gather(agent_task, abort_task, return_exceptions=True)
 
     if isinstance(result, Exception):
@@ -161,17 +156,12 @@ async def demo_abort() -> None:
 
 
 async def demo_abort_streaming() -> None:
-    """Demonstrate aborting a streaming agent run.
-
-    Same concept, but using agent.stream() instead of agent.run().
-    """
+    """Demonstrate aborting a streaming agent run."""
     print("\n\n--- Demo 3: Abort during streaming ---\n")
 
     agent = KAgent(
-        model="openai:gpt-5",
-        system_prompt=(
-            "You are an assistant. When asked to research, call the research tool for each topic."
-        ),
+        model="openai:gpt-4o",
+        system_prompt="You are an assistant. When asked to research, call the research tool.",
         max_turns=10,
     )
 
@@ -219,7 +209,7 @@ async def demo_abort_streaming() -> None:
 
 
 async def main():
-    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
+    configure()  # backend="aicore" by default; reads AICORE_* from .env
 
     print("=== Steering Example ===")
     await demo_steer()

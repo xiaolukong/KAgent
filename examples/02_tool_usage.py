@@ -1,4 +1,4 @@
-"""Example 02: Tool usage with KAgent.
+"""Example 02: Tool usage with KAgent via SAP AI Core.
 
 This example demonstrates:
 - Registering tools with the @agent.tool decorator
@@ -6,8 +6,10 @@ This example demonstrates:
 - Tool results are fed back to the model
 - Running the same tool-equipped agent across multiple providers
 
+Credentials are read automatically from AICORE_* environment variables.
+
 Usage:
-    # 1. Copy .env.example to .env and fill in your API key
+    # 1. Copy .env.example to .env and fill in your AICORE_* credentials
     # 2. Run:
     python examples/02_tool_usage.py
 """
@@ -18,8 +20,8 @@ import random
 from kagent import KAgent, configure
 
 MODELS = [
-    "openai:gpt-5",
-    "anthropic:claude-opus-4-5-20251101",
+    "openai:gpt-4o",
+    "anthropic:anthropic--claude-4.5-sonnet",
     "gemini:gemini-2.5-pro",
 ]
 
@@ -60,7 +62,7 @@ async def run_with_model(model: str) -> None:
 
 
 async def main():
-    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
+    configure()  # backend="aicore" by default; reads AICORE_* from .env
 
     print("=== Tool Usage — Multi-Model ===")
     for model in MODELS:

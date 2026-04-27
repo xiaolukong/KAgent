@@ -1,4 +1,4 @@
-"""Example 10: Thinking/Reasoning streaming with KAgent.
+"""Example 10: Thinking/Reasoning streaming with KAgent via SAP AI Core.
 
 This example demonstrates:
 - Streaming thinking/reasoning tokens from reasoning models
@@ -10,8 +10,17 @@ Models that produce thinking content:
 - OpenAI: o1, o3 series (reasoning_content)
 - DeepSeek: DeepSeek-R1 (reasoning_content via OpenAI-compatible API)
 
+Note on SAP AI Core:
+    The AI Core Orchestration Service wraps model responses and does not
+    currently expose thinking/reasoning tokens (THINKING_DELTA chunks will
+    not appear). The TEXT_DELTA stream and final response content work
+    normally. To use extended thinking, connect directly via ai-proxy
+    backend with configure(backend="aiproxy").
+
+Credentials are read automatically from AICORE_* environment variables.
+
 Usage:
-    # 1. Copy .env.example to .env and fill in your API key
+    # 1. Copy .env.example to .env and fill in your AICORE_* credentials
     # 2. Run:
     python examples/10_thinking.py
 """
@@ -25,7 +34,7 @@ from kagent.domain.enums import StreamChunkType
 async def streaming_thinking() -> None:
     """Demonstrate streaming thinking/reasoning tokens."""
     agent = KAgent(
-        model="anthropic:claude-opus-4-5-20251101",
+        model="anthropic:anthropic--claude-4.5-sonnet",
         system_prompt="You are a careful reasoning assistant.",
     )
 
@@ -44,12 +53,14 @@ async def streaming_thinking() -> None:
     print("\n")
     if thinking_parts:
         print(f"[Thinking length: {len(''.join(thinking_parts))} chars]")
+    else:
+        print("[No thinking tokens — AI Core orchestration does not expose reasoning content]")
 
 
 async def non_streaming_thinking() -> None:
     """Demonstrate non-streaming thinking access via metadata."""
     agent = KAgent(
-        model="anthropic:claude-opus-4-5-20251101",
+        model="anthropic:anthropic--claude-4.5-sonnet",
         system_prompt="You are a careful reasoning assistant.",
     )
 
@@ -67,7 +78,7 @@ async def non_streaming_thinking() -> None:
 
 
 async def main():
-    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
+    configure()  # backend="aicore" by default; reads AICORE_* from .env
 
     try:
         await streaming_thinking()

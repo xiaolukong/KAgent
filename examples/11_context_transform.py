@@ -1,4 +1,4 @@
-"""Example 11: Context Transform Pipeline.
+"""Example 11: Context Transform Pipeline via SAP AI Core.
 
 This example demonstrates:
 - Using @agent.transform to register context transforms
@@ -6,8 +6,10 @@ This example demonstrates:
 - Injecting dynamic system context (current time, working directory)
 - How transforms only affect LLM input — ContextManager retains full history
 
+Credentials are read automatically from AICORE_* environment variables.
+
 Usage:
-    # 1. Copy .env.example to .env and fill in your API key
+    # 1. Copy .env.example to .env and fill in your AICORE_* credentials
     # 2. Run:
     python examples/11_context_transform.py
 """
@@ -21,10 +23,10 @@ from kagent.domain.enums import Role
 
 
 async def main():
-    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
+    configure()  # backend="aicore" by default; reads AICORE_* from .env
 
     agent = KAgent(
-        model="openai:gpt-5",
+        model="openai:gpt-4o",
         system_prompt="You are a helpful assistant.",
     )
 
@@ -69,7 +71,7 @@ async def main():
     print("=== Internal Messages Demo ===\n")
 
     agent2 = KAgent(
-        model="openai:gpt-5",
+        model="openai:gpt-4o",
         system_prompt="You are a helpful assistant. Keep answers brief.",
     )
 

@@ -1,12 +1,14 @@
-"""Example 03: Streaming output with KAgent.
+"""Example 03: Streaming output with KAgent via SAP AI Core.
 
 This example demonstrates:
 - Using agent.stream() for real-time token-by-token output
 - Handling StreamChunk objects
 - Streaming across multiple model providers
 
+Credentials are read automatically from AICORE_* environment variables.
+
 Usage:
-    # 1. Copy .env.example to .env and fill in your API key
+    # 1. Copy .env.example to .env and fill in your AICORE_* credentials
     # 2. Run:
     python examples/03_streaming.py
 """
@@ -16,8 +18,8 @@ import asyncio
 from kagent import KAgent, configure
 
 MODELS = [
-    "openai:gpt-5",
-    "anthropic:claude-opus-4-5-20251101",
+    "openai:gpt-4o",
+    "anthropic:anthropic--claude-4.5-sonnet",
     "gemini:gemini-2.5-pro",
 ]
 
@@ -44,7 +46,7 @@ async def run_with_model(model: str) -> None:
 
 
 async def main():
-    configure()  # reads KAGENT_API_KEY and KAGENT_BASE_URL from .env
+    configure()  # backend="aicore" by default; reads AICORE_* from .env
 
     print("=== Streaming — Multi-Model ===")
     for model in MODELS:

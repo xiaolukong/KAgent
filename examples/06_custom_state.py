@@ -5,6 +5,9 @@ This example demonstrates:
 - State changes broadcast through EventBus
 - Snapshot and restore of ContextManager
 
+Note: This example exercises the KAgent context/state layer directly and
+does not make LLM calls, so no AI Core credentials are required.
+
 Usage:
     python examples/06_custom_state.py
 """
